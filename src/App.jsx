@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
+import { supabase } from './lib/supabase'
 
 // --- Simulación de Base de Datos Local (hasta que se configuren las llaves) ---
 const mockAttendance = [
@@ -92,6 +93,7 @@ const KioskView = () => {
 
 const MobileView = () => {
   const [employeeName, setEmployeeName] = useState(localStorage.getItem('emp_name') || '')
+  const [employeePhone, setEmployeePhone] = useState(localStorage.getItem('emp_phone') || '')
   const [scanning, setScanning] = useState(!!employeeName)
   const [status, setStatus] = useState('idle') // idle, selecting, success
   const [lastScanData, setLastScanData] = useState(null)
@@ -104,16 +106,28 @@ const MobileView = () => {
     }
   }
 
-  const registerAttendance = (type) => {
+  const registerAttendance = async (type) => {
     setStatus('success')
     confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#6366f1', '#10b981', '#f43f5e'] })
     
+    const record = { 
+      nombre: employeeName, 
+      celular: employeePhone,
+      tipo: type,
+      timestamp: new Date().toISOString()
+    }
+
+    // Guardar en Supabase si está configurado
+    try {
+      const { error } = await supabase.from('asistencia').insert([record])
+      if (error) console.error("Error en Supabase:", error)
+    } catch (e) {
+      console.error("Error de conexión:", e)
+    }
+
+    // Seguir guardando en local como respaldo
     const records = JSON.parse(localStorage.getItem('attendance_logs') || '[]')
-    records.unshift({ 
-      name: employeeName, 
-      timestamp: new Date().toISOString(),
-      type: type 
-    })
+    records.unshift(record)
     localStorage.setItem('attendance_logs', JSON.stringify(records))
 
     setTimeout(() => {
@@ -125,19 +139,33 @@ const MobileView = () => {
   useEffect(() => {
     if (scanning && status === 'idle') {
       const scanner = new Html5QrcodeScanner("reader", { 
-        fps: 25, 
-        qrbox: { width: 280, height: 280 },
-        aspectRatio: 1.0 
+        fps: 10, 
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        videoConstraints: {
+          facingMode: "environment"
+        }
       })
-      scanner.render(handleScan, (err) => {})
-      return () => scanner.clear().catch(e => {})
+      
+      scanner.render(
+        (text) => handleScan(text),
+        (error) => {
+          // Error silencioso de escaneo
+        }
+      )
+
+      return () => {
+        scanner.clear().catch(e => console.error("Error al cerrar scanner", e))
+      }
     }
   }, [scanning, status])
 
-  const registerDevice = (name) => {
-    if (!name.trim()) return
+  const registerDevice = (name, phone) => {
+    if (!name.trim() || !phone.trim()) return
     localStorage.setItem('emp_name', name)
+    localStorage.setItem('emp_phone', phone)
     setEmployeeName(name)
+    setEmployeePhone(phone)
     setScanning(true)
   }
 
@@ -175,95 +203,90 @@ const MobileView = () => {
     </button>
   )
 
-  if (!employeeName) {
-    return (
-      <div style={{ padding: '2rem', maxWidth: '400px', margin: '0 auto', minHeight: '90vh', display: 'flex', alignItems: 'center' }}>
-        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} style={{ width: '100%' }}>
-          <Card style={{ padding: '2.5rem' }}>
-            <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-              <div style={{ 
-                background: 'linear-gradient(135deg, #6366f1, #a855f7)', 
-                width: '70px', height: '70px', borderRadius: '22px', 
-                display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                margin: '0 auto 1.5rem',
-                boxShadow: '0 15px 30px -5px rgba(99, 102, 241, 0.4)'
-              }}>
-                <Smartphone color="white" size={34} />
-              </div>
-              <h2 style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>Tu Identidad</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Vincula este celular a tu cuenta de empleado.</p>
-            </div>
-            
-            <div style={{ marginBottom: '2rem' }}>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Nombre Completo</label>
-              <input 
-                type="text" 
-                placeholder="Ej. Juan Pérez"
-                id="nameInput"
-                style={{ width: '100%', padding: '1.2rem', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'white', fontSize: '1.1rem', boxSizing: 'border-box' }}
-              />
-            </div>
-            
-            <button className="btn-primary" style={{ width: '100%', padding: '1.2rem', fontSize: '1.1rem' }} onClick={() => registerDevice(document.getElementById('nameInput').value)}>
-              Vincular Dispositivo <ChevronRight size={20} />
-            </button>
-          </Card>
-        </motion.div>
-      </div>
-    )
-  }
-
   return (
-    <div style={{ padding: '1.5rem', maxWidth: '500px', margin: '0 auto', textAlign: 'center' }}>
-      <AnimatePresence mode="wait">
-        {status === 'success' ? (
-          <motion.div key="success" initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} style={{ padding: '4rem 1rem' }}>
-            <div className="float-animation">
-              <CheckCircle2 size={100} color="#10b981" style={{ margin: '0 auto 2rem', filter: 'drop-shadow(0 0 20px rgba(16, 185, 129, 0.4))' }} />
+    <div className="mobile-app-shell">
+      {!employeeName ? (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="mobile-card">
+          <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+            <div style={{ 
+              background: 'linear-gradient(135deg, #6366f1, #a855f7)', 
+              width: '80px', height: '80px', borderRadius: '24px', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              margin: '0 auto 1.5rem',
+              boxShadow: '0 15px 30px -5px rgba(99, 102, 241, 0.4)'
+            }}>
+              <Smartphone color="white" size={36} />
             </div>
-            <h1 style={{ fontSize: '2.8rem', marginBottom: '1rem' }}>¡Perfecto!</h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', maxWidth: '300px', margin: '0 auto' }}>Tu registro ha sido procesado con éxito.</p>
-          </motion.div>
-        ) : status === 'selecting' ? (
-          <motion.div key="selecting" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -30 }}>
-            <div style={{ marginBottom: '2.5rem', textAlign: 'left' }}>
-              <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Selecciona <span className="text-gradient">Acción</span></h2>
-              <p style={{ color: 'var(--text-muted)' }}>¿Qué registro deseas realizar ahora?</p>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem' }}>
-              <AttendanceButton label="Ingreso" color="#10b981" icon={UserCheck} description="Entrada mañana" />
-              <AttendanceButton label="Almuerzo" color="#fbbf24" icon={Clock} description="Inicio descanso" />
-              <AttendanceButton label="Regreso" color="#818cf8" icon={History} description="Fin de descanso" />
-              <AttendanceButton label="Salida" color="#f43f5e" icon={LayoutDashboard} description="Fin de jornada" />
-            </div>
-            
-            <button className="btn-secondary" style={{ marginTop: '2.5rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', textDecoration: 'underline' }} onClick={() => { setStatus('idle'); setScanning(true); }}>
-              Cancelar y volver a escanear
-            </button>
-          </motion.div>
-        ) : (
-          <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase' }}>Sesión Activa</p>
-                <h3 style={{ margin: 0, fontSize: '1.3rem' }}>{employeeName}</h3>
-              </div>
-              <button onClick={() => { localStorage.clear(); window.location.reload(); }} style={{ background: 'rgba(244, 63, 94, 0.1)', border: 'none', color: '#f43f5e', fontSize: '0.75rem', padding: '0.5rem 1rem', borderRadius: '10px', fontWeight: '600' }}>Cerrar Sesión</button>
-            </div>
-            
-            <div style={{ position: 'relative' }}>
-              <div id="reader" style={{ borderRadius: '32px', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}></div>
-              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '220px', height: '220px', border: '2px dashed rgba(99, 102, 241, 0.5)', borderRadius: '30px', pointerEvents: 'none' }}></div>
-            </div>
-            
-            <div style={{ marginTop: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', color: 'var(--text-muted)' }}>
-              <div style={{ width: '6px', height: '6px', background: 'var(--primary)', borderRadius: '50%', boxShadow: '0 0 8px var(--primary)' }}></div>
-              <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Buscando código QR de oficina...</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <h2 style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>Tu Identidad</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Vincula este celular a tu cuenta.</p>
+          </div>
+          
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block', fontWeight: '600' }}>NOMBRE COMPLETO</label>
+            <input type="text" id="nameInput" className="glass-card" style={{ width: '100%', padding: '1.2rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '16px' }} />
+          </div>
+
+          <div style={{ marginBottom: '2.5rem' }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block', fontWeight: '600' }}>NÚMERO DE CELULAR</label>
+            <input type="tel" id="phoneInput" className="glass-card" style={{ width: '100%', padding: '1.2rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '16px' }} />
+          </div>
+          
+          <button className="btn-primary" style={{ width: '100%', padding: '1.2rem' }} onClick={() => registerDevice(document.getElementById('nameInput').value, document.getElementById('phoneInput').value)}>
+            Registrar Dispositivo <ChevronRight size={20} />
+          </button>
+        </motion.div>
+      ) : (
+        <div className="mobile-card">
+          <AnimatePresence mode="wait">
+            {status === 'success' ? (
+              <motion.div key="success" initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} style={{ textAlign: 'center', padding: '2rem 0' }}>
+                <CheckCircle2 size={100} color="#10b981" style={{ margin: '0 auto 2rem' }} />
+                <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>¡Perfecto!</h1>
+                <p style={{ color: 'var(--text-muted)' }}>Tu registro ha sido procesado.</p>
+              </motion.div>
+            ) : status === 'selecting' ? (
+              <motion.div key="selecting" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <h2 style={{ fontSize: '1.8rem', marginBottom: '2rem', textAlign: 'center' }}>¿Qué deseas <span className="text-gradient">Marcar</span>?</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <AttendanceButton label="Ingreso" color="#10b981" icon={UserCheck} description="Mañana" />
+                  <AttendanceButton label="Almuerzo" color="#fbbf24" icon={Clock} description="Inicio" />
+                  <AttendanceButton label="Regreso" color="#818cf8" icon={History} description="Fin" />
+                  <AttendanceButton label="Salida" color="#f43f5e" icon={LayoutDashboard} description="Tarde" />
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.1rem' }}>
+                      <div style={{ width: '6px', height: '6px', background: '#34d399', borderRadius: '50%' }}></div>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>ACTIVO</span>
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem' }}>{employeeName}</h3>
+                  </div>
+                  <button onClick={() => { localStorage.clear(); window.location.reload(); }} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#f43f5e', fontSize: '0.7rem', padding: '0.5rem 1rem', borderRadius: '12px' }}>Salir</button>
+                </div>
+                
+                <div className="scanner-wrapper">
+                  <div id="reader"></div>
+                  <div className="scanner-lens">
+                    <div className="scanner-corner corner-tl"></div>
+                    <div className="scanner-corner corner-tr"></div>
+                    <div className="scanner-corner corner-bl"></div>
+                    <div className="scanner-corner corner-br"></div>
+                    <div className="scan-line"></div>
+                  </div>
+                </div>
+                
+                <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.4rem' }}>Escaneando QR...</div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Apunta a la pantalla de la entrada</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   )
 }
@@ -272,107 +295,89 @@ const MobileView = () => {
 
 const AdminView = () => {
   const [logs, setLogs] = useState([])
+  const [dbStatus, setDbStatus] = useState('checking')
 
   useEffect(() => {
-    const updateLogs = () => {
-      const localLogs = JSON.parse(localStorage.getItem('attendance_logs') || '[]')
-      setLogs(localLogs)
+    let channel;
+    
+    const initAdmin = async () => {
+      try {
+        // 1. Carga inicial
+        const { data, error } = await supabase
+          .from('asistencia')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(50)
+        
+        if (error) throw error
+        setLogs(data || [])
+        setDbStatus('ok')
+
+        // 2. Suscripción Realtime
+        channel = supabase
+          .channel('admin-live')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'asistencia' }, (payload) => {
+            setLogs(prev => [payload.new, ...prev])
+          })
+          .subscribe()
+          
+      } catch (e) {
+        console.error("Error Admin:", e)
+        setDbStatus('error')
+      }
     }
-    updateLogs()
-    const interval = setInterval(updateLogs, 2000)
-    return () => clearInterval(interval)
+
+    initAdmin()
+    return () => { if (channel) supabase.removeChannel(channel) }
   }, [])
 
   return (
-    <div style={{ padding: '1rem' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '3.5rem' }}>
-        <div>
-          <h1 style={{ fontSize: '2.5rem', marginBottom: '0.2rem' }}>Control <span className="text-gradient">Maestro</span></h1>
-          <p style={{ color: 'var(--text-muted)' }}>Gestión de personal en tiempo real</p>
-        </div>
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <Link to="/kiosko" target="_blank" className="btn-secondary" style={{ textDecoration: 'none', background: 'rgba(255,255,255,0.05)', padding: '0.8rem 1.5rem', borderRadius: '14px', border: '1px solid var(--glass-border)', fontSize: '0.9rem', color: 'white' }}>Monitor QR</Link>
-          <Link to="/mobile" target="_blank" className="btn-secondary" style={{ textDecoration: 'none', background: 'rgba(255,255,255,0.05)', padding: '0.8rem 1.5rem', borderRadius: '14px', border: '1px solid var(--glass-border)', fontSize: '0.9rem', color: 'white' }}>Vista Móvil</Link>
+    <div style={{ padding: '20px', minHeight: '100vh', background: 'var(--bg-dark)', color: 'white' }}>
+      <header style={{ marginBottom: '40px' }}>
+        <h1 style={{ fontSize: '2rem' }}>Panel <span className="text-gradient">Admin</span></h1>
+        <div style={{ 
+          display: 'inline-block', padding: '5px 15px', borderRadius: '20px', 
+          fontSize: '0.8rem', background: dbStatus === 'ok' ? '#10b98122' : '#f43f5e22',
+          color: dbStatus === 'ok' ? '#10b981' : '#f43f5e', border: '1px solid currentColor'
+        }}>
+          {dbStatus === 'ok' ? '● CONECTADO' : dbStatus === 'error' ? '● ERROR DE RED' : '● VERIFICANDO...'}
         </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <Card style={{ position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: 0, right: 0, padding: '1rem' }}>
-              <Users size={40} color="var(--primary)" style={{ opacity: 0.2 }} />
-            </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase' }}>Registros Hoy</p>
-            <div style={{ fontSize: '3.5rem', fontWeight: '800', margin: '0.5rem 0' }}>{logs.length}</div>
-            <div style={{ fontSize: '0.85rem', color: '#10b981' }}>+12% que ayer</div>
-          </Card>
-          
-          <Card>
-            <h3 style={{ marginBottom: '1.5rem' }}>Resumen por Tipo</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {['Ingreso', 'Almuerzo', 'Regreso', 'Salida'].map(type => {
-                const count = logs.filter(l => l.type.includes(type)).length
-                return (
-                  <div key={type} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>{type}</span>
-                    <span style={{ fontWeight: '700' }}>{count}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+        <Card style={{ padding: '20px' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>REGISTROS TOTALES</div>
+          <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{logs.length}</div>
+        </Card>
 
-        <Card style={{ padding: '1.5rem 0' }}>
-          <div style={{ padding: '0 2rem 1.5rem 2rem', borderBottom: '1px solid var(--glass-border)' }}>
-            <h3 style={{ margin: 0 }}>Historial de Actividad</h3>
-          </div>
-          <div style={{ maxHeight: '500px', overflowY: 'auto', padding: '0 1rem' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 0.8rem' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '1rem' }}>Empleado</th>
-                  <th style={{ padding: '1rem' }}>Acción</th>
-                  <th style={{ padding: '1rem' }}>Hora Exacta</th>
-                  <th style={{ padding: '1rem' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.length === 0 ? (
-                  <tr><td colSpan="4" style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Sin registros recientes</td></tr>
-                ) : (
-                  logs.map((log, i) => (
-                    <motion.tr initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} key={i} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '14px' }}>
-                      <td style={{ padding: '1rem', borderRadius: '14px 0 0 14px', fontWeight: '600' }}>{log.name}</td>
-                      <td style={{ padding: '1rem' }}>
-                        <span style={{ 
-                          background: log.type.includes('Ingreso') ? 'rgba(16, 185, 129, 0.15)' : 
-                                     log.type.includes('Salida') ? 'rgba(244, 63, 94, 0.15)' : 
-                                     log.type.includes('Almuerzo') ? 'rgba(251, 191, 36, 0.15)' : 'rgba(129, 140, 248, 0.15)',
-                          color: log.type.includes('Ingreso') ? '#10b981' : 
-                                 log.type.includes('Salida') ? '#f43f5e' : 
-                                 log.type.includes('Almuerzo') ? '#fbbf24' : '#818cf8',
-                          padding: '0.4rem 0.8rem',
-                          borderRadius: '10px',
-                          fontSize: '0.8rem',
-                          fontWeight: '700'
-                        }}>
-                          {log.type}
-                        </span>
-                      </td>
-                      <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{new Date(log.timestamp).toLocaleTimeString()}</td>
-                      <td style={{ padding: '1rem', borderRadius: '0 14px 14px 0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>
-                          <div style={{ width: '6px', height: '6px', background: '#10b981', borderRadius: '50%' }}></div>
-                          VÁLIDO
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        <Card style={{ gridColumn: 'span 2', padding: '20px', overflowX: 'auto' }}>
+          <h3 style={{ marginBottom: '20px' }}>Actividad Reciente</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)' }}>
+                <th style={{ padding: '10px' }}>Empleado</th>
+                <th style={{ padding: '10px' }}>Acción</th>
+                <th style={{ padding: '10px' }}>Hora</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.length === 0 ? (
+                <tr><td colSpan="3" style={{ textAlign: 'center', padding: '20px' }}>Esperando registros...</td></tr>
+              ) : (
+                logs.map((log, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '12px', fontWeight: '600' }}>{log.nombre || 'Anónimo'}</td>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{ color: log.tipo?.includes('Ingreso') ? '#10b981' : '#818cf8' }}>{log.tipo}</span>
+                    </td>
+                    <td style={{ padding: '12px', color: 'var(--text-muted)' }}>
+                      {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '--:--'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </Card>
       </div>
     </div>
@@ -413,9 +418,14 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Welcome />} />
+        {/* Ahora la página principal es directamente la App Móvil */}
+        <Route path="/" element={<MobileView />} />
+        
+        {/* Rutas "ocultas" que solo tú conocerás para el control */}
         <Route path="/admin" element={<AdminView />} />
         <Route path="/kiosko" element={<KioskView />} />
+        
+        {/* Por si acaso alguien entra a /mobile, también funciona */}
         <Route path="/mobile" element={<MobileView />} />
       </Routes>
     </BrowserRouter>
