@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Reemplaza estas URLs con las de tu proyecto de Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co'
+let supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key'
+
+// Protección contra URLs inválidas puestas en Vercel por error
+if (!supabaseUrl.startsWith('http')) {
+  console.warn("⚠️ VITE_SUPABASE_URL es inválida. Usando placeholder temporal.");
+  supabaseUrl = 'https://placeholder.supabase.co';
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
