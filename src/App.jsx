@@ -137,25 +137,36 @@ const MobileView = () => {
   }
 
   useEffect(() => {
+    let scanner = null;
+    
     if (scanning && status === 'idle') {
-      const scanner = new Html5QrcodeScanner("reader", { 
-        fps: 10, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
-        videoConstraints: {
-          facingMode: "environment"
+      // Usamos un pequeño timeout para asegurar que AnimatePresence y motion.div hayan montado el elemento
+      const initScanner = setTimeout(() => {
+        const readerElement = document.getElementById('reader');
+        if (!readerElement) return; // Si no existe, no intentamos iniciar
+
+        try {
+          scanner = new Html5QrcodeScanner("reader", { 
+            fps: 10, 
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            videoConstraints: { facingMode: "environment" }
+          }, false) // false = no verbose
+          
+          scanner.render(
+            (text) => handleScan(text),
+            (error) => { /* silencioso */ }
+          )
+        } catch (err) {
+          console.error("Error iniciando scanner:", err);
         }
-      })
-      
-      scanner.render(
-        (text) => handleScan(text),
-        (error) => {
-          // Error silencioso de escaneo
-        }
-      )
+      }, 300);
 
       return () => {
-        scanner.clear().catch(e => console.error("Error al cerrar scanner", e))
+        clearTimeout(initScanner);
+        if (scanner) {
+          scanner.clear().catch(e => console.error("Error al cerrar scanner", e))
+        }
       }
     }
   }, [scanning, status])
@@ -414,21 +425,48 @@ const Welcome = () => (
   </div>
 )
 
+// --- CAPTURADOR DE ERRORES GLOBAL ---
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', textAlign: 'center', color: '#f43f5e', background: '#0f172a', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <h2>Oops! Algo salió mal.</h2>
+          <p>La aplicación se detuvo. Por favor, toma una captura de este error:</p>
+          <pre style={{ background: 'rgba(0,0,0,0.5)', padding: '1rem', borderRadius: '10px', textAlign: 'left', overflowX: 'auto', color: 'white', marginTop: '1rem' }}>
+            {this.state.error && this.state.error.toString()}
+          </pre>
+          <button onClick={() => window.location.reload()} style={{ marginTop: '2rem', padding: '1rem', background: '#f43f5e', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold' }}>
+            Recargar Página
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Ahora la página principal es directamente la App Móvil */}
-        <Route path="/" element={<MobileView />} />
-        
-        {/* Rutas "ocultas" que solo tú conocerás para el control */}
-        <Route path="/admin" element={<AdminView />} />
-        <Route path="/kiosko" element={<KioskView />} />
-        
-        {/* Por si acaso alguien entra a /mobile, también funciona */}
-        <Route path="/mobile" element={<MobileView />} />
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<MobileView />} />
+          <Route path="/admin" element={<AdminView />} />
+          <Route path="/kiosko" element={<KioskView />} />
+          <Route path="/mobile" element={<MobileView />} />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 
