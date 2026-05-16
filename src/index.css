@@ -121,23 +121,109 @@ h1 {
   margin-bottom: 0.5rem;
 }
 
-.qr-container {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 20px;
-  display: inline-block;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-}
-
-.scanner-container {
-  width: 100%;
-  max-width: 500px;
-  margin: 0 auto;
-  border-radius: 20px;
+/* --- DISEÑO MÓVIL PREMIUM --- */
+.mobile-app-shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  background: radial-gradient(circle at top right, #1e1b4b, #020617);
   overflow: hidden;
-  border: 2px solid var(--primary);
+  width: 100%;
+  box-sizing: border-box;
 }
 
+.mobile-card {
+  width: 100%;
+  max-width: 400px;
+  background: rgba(30, 41, 59, 0.5);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 40px;
+  padding: 2rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* --- ESCÁNER CYBERPUNK --- */
+.scanner-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 40px rgba(99, 102, 241, 0.2);
+}
+
+.scanner-wrapper video {
+  object-fit: cover !important;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 24px !important;
+}
+
+.scanner-lens {
+  position: absolute;
+  top: 15%; left: 15%; right: 15%; bottom: 15%;
+  border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.scanner-corner {
+  position: absolute;
+  width: 30px; height: 30px;
+  border-color: #34d399;
+  border-style: solid;
+  border-width: 0;
+}
+
+.corner-tl { top: -2px; left: -2px; border-top-width: 4px; border-left-width: 4px; border-top-left-radius: 16px; }
+.corner-tr { top: -2px; right: -2px; border-top-width: 4px; border-right-width: 4px; border-top-right-radius: 16px; }
+.corner-bl { bottom: -2px; left: -2px; border-bottom-width: 4px; border-left-width: 4px; border-bottom-left-radius: 16px; }
+.corner-br { bottom: -2px; right: -2px; border-bottom-width: 4px; border-right-width: 4px; border-bottom-right-radius: 16px; }
+
+.scan-line {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: #34d399;
+  box-shadow: 0 0 10px #34d399, 0 0 20px #34d399;
+  animation: scan 2s linear infinite;
+  opacity: 0.8;
+}
+
+@keyframes scan {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Ocultar UI nativa fea del HTML5-QRCode */
+#reader {
+  border: none !important;
+  background: transparent !important;
+}
+
+#reader__dashboard_section_csr span,
+#reader__dashboard_section_csr button,
+#reader__dashboard_section_swaplink,
+#reader__dashboard_section_fsr, 
+#reader__dashboard_section_fsr input,
+#reader a {
+  display: none !important;
+}
+
+#reader__dashboard_section_csr {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Otros utilitarios */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
@@ -157,6 +243,6 @@ input:focus {
 }
 
 @media (max-width: 768px) {
-  #root { padding: 1rem; }
+  #root { padding: 0; }
   h1 { font-size: 2rem; }
 }
