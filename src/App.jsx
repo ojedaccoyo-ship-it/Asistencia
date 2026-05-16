@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
-import { Html5QrcodeScanner } from 'html5-qrcode'
+import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode'
 import { 
   LayoutDashboard, 
   QrCode, 
@@ -150,7 +150,8 @@ const MobileView = () => {
             fps: 10, 
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1.0,
-            videoConstraints: { facingMode: "environment" }
+            videoConstraints: { facingMode: "environment" },
+            supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] // 0 = Solo Cámara
           }, false) // false = no verbose
           
           scanner.render(
