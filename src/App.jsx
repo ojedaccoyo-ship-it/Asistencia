@@ -465,6 +465,8 @@ function App() {
           <Route path="/admin" element={<AdminView />} />
           <Route path="/kiosko" element={<KioskView />} />
           <Route path="/mobile" element={<MobileView />} />
+          {/* Ruta de respaldo: si escriben mal la URL, los mandamos al inicio */}
+          <Route path="*" element={<MobileView />} />
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>
