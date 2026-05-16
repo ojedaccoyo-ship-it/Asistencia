@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode'
+import { Html5Qrcode } from 'html5-qrcode'
 import { 
   LayoutDashboard, 
   QrCode, 
@@ -137,36 +137,36 @@ const MobileView = () => {
   }
 
   useEffect(() => {
-    let scanner = null;
+    let html5QrCode = null;
     
     if (scanning && status === 'idle') {
-      // Usamos un pequeño timeout para asegurar que AnimatePresence y motion.div hayan montado el elemento
       const initScanner = setTimeout(() => {
         const readerElement = document.getElementById('reader');
-        if (!readerElement) return; // Si no existe, no intentamos iniciar
+        if (!readerElement) return;
 
         try {
-          scanner = new Html5QrcodeScanner("reader", { 
-            fps: 10, 
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
-            videoConstraints: { facingMode: "environment" },
-            supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] // 0 = Solo Cámara
-          }, false) // false = no verbose
-          
-          scanner.render(
-            (text) => handleScan(text),
-            (error) => { /* silencioso */ }
-          )
+          html5QrCode = new Html5Qrcode("reader");
+          html5QrCode.start(
+            { facingMode: "environment" }, 
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 },
+              aspectRatio: 1.0
+            },
+            (decodedText) => handleScan(decodedText),
+            (errorMessage) => { /* silencioso */ }
+          ).catch(err => {
+            console.error("Error al arrancar cámara:", err);
+          });
         } catch (err) {
-          console.error("Error iniciando scanner:", err);
+          console.error("Error inicializando:", err);
         }
       }, 300);
 
       return () => {
         clearTimeout(initScanner);
-        if (scanner) {
-          scanner.clear().catch(e => console.error("Error al cerrar scanner", e))
+        if (html5QrCode && html5QrCode.isScanning) {
+          html5QrCode.stop().then(() => html5QrCode.clear()).catch(console.error);
         }
       }
     }
