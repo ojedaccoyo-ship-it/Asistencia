@@ -10,8 +10,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
 import { supabase } from './lib/supabase'
-import { format, parseISO, isToday, isSameDay, subDays } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { parseISO, isToday, isSameDay, subDays, format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 
 // --- Componentes Compartidos ---
@@ -279,10 +278,10 @@ const MobileView = () => {
                       <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.8rem', borderRadius: '15px' }}>{icon}</div>
                       <div style={{ flex: 1 }}>
                         <h4 style={{ margin: '0 0 0.2rem 0' }}>{log.tipo}</h4>
-                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{format(dateObj, "d 'de' MMMM, yyyy", { locale: es })}</p>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{dateObj.toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{format(dateObj, 'HH:mm')}</span>
+                        <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{dateObj.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
                   </Card>
@@ -501,8 +500,8 @@ const AdminView = () => {
                       return (
                         <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}>
                           <td style={{ padding: '1.5rem' }}>
-                            <div style={{ fontWeight: '500' }}>{format(dateObj, 'HH:mm:ss')}</div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{format(dateObj, "d MMM, yyyy", { locale: es })}</div>
+                            <div style={{ fontWeight: '500' }}>{dateObj.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{dateObj.toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                           </td>
                           <td style={{ padding: '1.5rem', fontWeight: 'bold' }}>{log.nombre}</td>
                           <td style={{ padding: '1.5rem', color: 'var(--text-muted)' }}>{log.celular}</td>
