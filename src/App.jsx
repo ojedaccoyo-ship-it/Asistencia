@@ -10,7 +10,12 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
 import { supabase } from './lib/supabase'
-import { parseISO, isToday, isSameDay, subDays, format } from 'date-fns'
+// Helpers de fecha en JS puro (sin date-fns para evitar crashes)
+const parseDate = (ts) => new Date(ts)
+const isToday = (d) => { const n = new Date(); return d.toDateString() === n.toDateString() }
+const isSameDay = (a, b) => a.toDateString() === b.toDateString()
+const subDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() - n); return r }
+const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 
 // --- Componentes Compartidos ---
@@ -267,7 +272,7 @@ const MobileView = () => {
               <Card padding="2rem"><p style={{ textAlign: 'center', color: 'gray' }}>No tienes registros aún.</p></Card>
             ) : (
               myLogs.map((log) => {
-                const dateObj = parseISO(log.timestamp)
+                const dateObj = parseDate(log.timestamp)
                 let icon = <CheckCircle2 size={20} color="#10b981" />
                 if (log.tipo.includes('Permiso') || log.tipo.includes('Descanso')) icon = <CalendarOff size={20} color="#f59e0b" />
                 else if (log.tipo === 'Salida') icon = <LogOut size={20} color="#f43f5e" />
@@ -354,7 +359,7 @@ const AdminView = () => {
 
   // --- CÁLCULOS PARA EL DASHBOARD ---
   const stats = useMemo(() => {
-    const todayLogs = logs.filter(l => isToday(parseISO(l.timestamp)))
+    const todayLogs = logs.filter(l => isToday(parseDate(l.timestamp)))
     
     // Asistencias únicas hoy (Solo Ingresos)
     const presentesHoy = new Set(todayLogs.filter(l => l.tipo === 'Ingreso').map(l => l.celular)).size
@@ -370,12 +375,12 @@ const AdminView = () => {
     })
     const pieData = Object.keys(pieDataMap).map(k => ({ name: k, value: pieDataMap[k] })).filter(d => d.value > 0)
 
-    // Actividad últimos 7 días para BarChart
+    // Actividad últimos 7 días para BarChart (JS puro)
     const daysData = []
     for(let i=6; i>=0; i--) {
       const d = subDays(new Date(), i)
-      const label = format(d, 'EEE', { locale: es })
-      const count = logs.filter(l => isSameDay(parseISO(l.timestamp), d) && l.tipo === 'Ingreso').length
+      const label = DAY_NAMES[d.getDay()]
+      const count = logs.filter(l => isSameDay(parseDate(l.timestamp), d) && l.tipo === 'Ingreso').length
       daysData.push({ name: label, ingresos: count })
     }
 
@@ -496,7 +501,7 @@ const AdminView = () => {
                     <tr><td colSpan="4" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay datos disponibles en la base de datos.</td></tr>
                   ) : (
                     logs.map((log) => {
-                      const dateObj = parseISO(log.timestamp)
+                      const dateObj = parseDate(log.timestamp)
                       return (
                         <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}>
                           <td style={{ padding: '1.5rem' }}>
