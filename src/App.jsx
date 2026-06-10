@@ -5,7 +5,7 @@ import { Html5Qrcode } from 'html5-qrcode'
 import { 
   LayoutDashboard, QrCode, Scan, History, Users, Monitor, Smartphone,
   CheckCircle2, Clock, UserCheck, ChevronRight, BarChart3, CalendarDays, 
-  FileEdit, AlertCircle, CalendarOff, Home
+  FileEdit, AlertCircle, CalendarOff, Home, UserPlus, LogOut
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
