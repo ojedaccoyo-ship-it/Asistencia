@@ -222,7 +222,9 @@ const AdminView = () => {
   const [logs, setLogs] = useState([])
   const [dbStatus, setDbStatus] = useState('checking')
   const [tab, setTab] = useState('dashboard')
-  const [selectedColab, setSelectedColab] = useState('') // Filtro de colaborador
+  const [selectedColab, setSelectedColab] = useState('')
+  const [selectedTipo, setSelectedTipo] = useState('')
+  const [selectedMes, setSelectedMes] = useState('')
 
   useEffect(() => {
     supabase.from('asistencia').select('*').order('timestamp', { ascending: false }).limit(500)
@@ -236,11 +238,16 @@ const AdminView = () => {
     return () => supabase.removeChannel(sub)
   }, [])
 
-  // Filtrar logs si hay un colaborador seleccionado
+  // Filtrar logs
   const filteredLogs = useMemo(() => {
-    if (!selectedColab) return logs;
-    return logs.filter(l => l.nombre === selectedColab);
-  }, [logs, selectedColab]);
+    return logs.filter(l => {
+      const d = parseDate(l.timestamp);
+      const matchColab = !selectedColab || l.nombre === selectedColab;
+      const matchTipo = !selectedTipo || l.tipo === selectedTipo;
+      const matchMes = !selectedMes || (d.getMonth() + 1).toString() === selectedMes;
+      return matchColab && matchTipo && matchMes;
+    });
+  }, [logs, selectedColab, selectedTipo, selectedMes]);
 
   const stats = useMemo(() => {
     const todayLogs = filteredLogs.filter(l => isToday(parseDate(l.timestamp)))
@@ -350,6 +357,28 @@ const AdminView = () => {
         {/* Controles Empresariales */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <select 
+                value={selectedMes} 
+                onChange={(e) => setSelectedMes(e.target.value)}
+                style={{ padding: '0.6rem 1rem', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', outline: 'none' }}
+            >
+                <option value="">📅 Todos los Meses</option>
+                <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+                <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+                <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+                <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+            </select>
+            <select 
+                value={selectedTipo} 
+                onChange={(e) => setSelectedTipo(e.target.value)}
+                style={{ padding: '0.6rem 1rem', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', outline: 'none' }}
+            >
+                <option value="">🏷️ Todos los Tipos</option>
+                <option value="Ingreso">Ingreso</option>
+                <option value="Almuerzo">Salida Almuerzo</option>
+                <option value="Regreso Almuerzo">Regreso Almuerzo</option>
+                <option value="Salida">Salida</option>
+            </select>
+            <select 
                 value={selectedColab} 
                 onChange={(e) => setSelectedColab(e.target.value)}
                 style={{ padding: '0.6rem 1rem', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', outline: 'none' }}
@@ -386,15 +415,55 @@ const AdminView = () => {
 
           {!selectedColab ? (
             <Card style={{ padding:'2rem' }}>
-              <h3 style={{ marginBottom:'1.5rem' }}>Ingresos — Últimos 7 días</h3>
-              <div style={{ display:'flex', alignItems:'flex-end', gap:'0.5rem', height:'160px' }}>
-                {stats.daysData.map(d => (
-                  <div key={d.name} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:'0.4rem', height:'100%', justifyContent:'flex-end' }}>
-                    <span style={{ fontSize:'0.8rem', color:'#94a3b8', fontWeight:'700' }}>{d.count || ''}</span>
-                    <div style={{ width:'100%', background:'linear-gradient(180deg,#6366f1,#4f46e5)', borderRadius:'6px 6px 0 0', height:`${(d.count / stats.maxCount) * 100}%`, minHeight: d.count > 0 ? '8px' : '3px', opacity: d.count > 0 ? 1 : 0.2, transition:'height 0.5s ease' }} />
-                    <span style={{ fontSize:'0.75rem', color:'#94a3b8' }}>{d.name}</span>
-                  </div>
-                ))}
+              <h3 style={{ marginBottom:'1.5rem' }}>Evolución General de Ingresos (Últimos 7 días)</h3>
+              <div style={{ position: 'relative', height: '220px', width: '100%', paddingBottom: '25px', paddingTop: '10px' }}>
+                {(() => {
+                    const maxVal = stats.maxCount;
+                    const points = stats.daysData.map((d, i) => `${(i / (stats.daysData.length - 1)) * 100},${100 - (d.count / maxVal) * 100}`);
+                    const polylinePoints = points.map(p => {
+                        const [x, y] = p.split(',');
+                        return `${x}% ${y}%`;
+                    }).join(', ');
+                    
+                    // Simple path representation for pure CSS/SVG
+                    return (
+                        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                            <svg style={{ position: 'absolute', width: '100%', height: '100%', overflow: 'visible' }} preserveAspectRatio="none">
+                                <polyline 
+                                    points={stats.daysData.map((d, i) => `${(i / (stats.daysData.length - 1)) * 1000},${1000 - (d.count / maxVal) * 1000}`).join(' ')} 
+                                    fill="none" 
+                                    stroke="#6366f1" 
+                                    strokeWidth="4" 
+                                    strokeLinejoin="round"
+                                    vectorEffect="non-scaling-stroke"
+                                />
+                                {stats.daysData.map((d, i) => (
+                                    <circle 
+                                        key={i} 
+                                        cx={(i / (stats.daysData.length - 1)) * 1000} 
+                                        cy={1000 - (d.count / maxVal) * 1000} 
+                                        r="6" 
+                                        fill="#0f172a" 
+                                        stroke="#818cf8" 
+                                        strokeWidth="3"
+                                        vectorEffect="non-scaling-stroke"
+                                    />
+                                ))}
+                            </svg>
+                            {/* Etiquetas del eje X y Y (valores) */}
+                            {stats.daysData.map((d, i) => (
+                                <div key={i} style={{ position: 'absolute', left: `${(i / (stats.daysData.length - 1)) * 100}%`, bottom: '-25px', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: '700' }}>{d.name}</span>
+                                </div>
+                            ))}
+                            {stats.daysData.map((d, i) => (
+                                <div key={`val-${i}`} style={{ position: 'absolute', left: `${(i / (stats.daysData.length - 1)) * 100}%`, top: `${100 - (d.count / maxVal) * 100}%`, transform: 'translate(-50%, -25px)', color: '#fff', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                                    {d.count}
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })()}
               </div>
             </Card>
           ) : (
@@ -416,7 +485,8 @@ const AdminView = () => {
                             const limitValue = 9 + (5/60);
                             const diff = d.timeValue - limitValue;
                             // Amplificamos la diferencia para que sea visual (1 hora = 50px)
-                            const topPos = `calc(50% + ${diff * 50}px)`;
+                            // Restamos (-) para que si el diff es positivo (tardanza), suba en el eje Y
+                            const topPos = `calc(50% - ${diff * 50}px)`;
 
                             return (
                                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
