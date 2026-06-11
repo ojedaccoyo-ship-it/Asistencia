@@ -222,9 +222,10 @@ const AdminView = () => {
   const [logs, setLogs] = useState([])
   const [dbStatus, setDbStatus] = useState('checking')
   const [tab, setTab] = useState('dashboard')
+  const [selectedColab, setSelectedColab] = useState('') // Filtro de colaborador
 
   useEffect(() => {
-    supabase.from('asistencia').select('*').order('timestamp', { ascending: false }).limit(200)
+    supabase.from('asistencia').select('*').order('timestamp', { ascending: false }).limit(500)
       .then(({ data, error }) => { if (error) { setDbStatus('error') } else { setLogs(data || []); setDbStatus('ok') } })
       .catch(() => setDbStatus('error'))
 
@@ -235,21 +236,97 @@ const AdminView = () => {
     return () => supabase.removeChannel(sub)
   }, [])
 
+  // Filtrar logs si hay un colaborador seleccionado
+  const filteredLogs = useMemo(() => {
+    if (!selectedColab) return logs;
+    return logs.filter(l => l.nombre === selectedColab);
+  }, [logs, selectedColab]);
+
   const stats = useMemo(() => {
-    const todayLogs = logs.filter(l => isToday(parseDate(l.timestamp)))
+    const todayLogs = filteredLogs.filter(l => isToday(parseDate(l.timestamp)))
     const presentes = new Set(todayLogs.filter(l => l.tipo === 'Ingreso').map(l => l.celular)).size
     const permisos = todayLogs.filter(l => l.tipo.includes('Permiso') || l.tipo.includes('Descanso')).length
     const totalHoy = todayLogs.length
 
+    // Calcular tardanzas (Ingreso después de 09:05)
+    let tardanzas = 0;
+    const ingresosHoy = todayLogs.filter(l => l.tipo === 'Ingreso');
+    ingresosHoy.forEach(l => {
+        const d = parseDate(l.timestamp);
+        const hours = d.getHours();
+        const minutes = d.getMinutes();
+        if (hours > 9 || (hours === 9 && minutes > 5)) {
+            tardanzas++;
+        }
+    });
+
     const daysData = []
     for (let i = 6; i >= 0; i--) {
       const d = subDays(new Date(), i)
-      const count = logs.filter(l => isSameDay(parseDate(l.timestamp), d) && l.tipo === 'Ingreso').length
+      const count = filteredLogs.filter(l => isSameDay(parseDate(l.timestamp), d) && l.tipo === 'Ingreso').length
       daysData.push({ name: DAY_NAMES[d.getDay()], count })
     }
     const maxCount = Math.max(...daysData.map(d => d.count), 1)
-    return { presentes, permisos, totalHoy, daysData, maxCount }
-  }, [logs])
+
+    // Datos para el gráfico de línea (Hora de ingreso de los últimos días)
+    const lineData = [];
+    if (selectedColab) {
+        // Obtener los últimos 7 ingresos del colaborador
+        const ingresosColab = filteredLogs.filter(l => l.tipo === 'Ingreso').slice(0, 7).reverse();
+        ingresosColab.forEach(l => {
+            const d = parseDate(l.timestamp);
+            const timeValue = d.getHours() + (d.getMinutes() / 60); // Valor numérico para graficar
+            lineData.push({
+                fecha: fmtFecha(d),
+                horaStr: fmtHora(d),
+                timeValue: timeValue,
+                isLate: (d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() > 5))
+            });
+        });
+    }
+
+    return { presentes, permisos, totalHoy, tardanzas, daysData, maxCount, lineData }
+  }, [filteredLogs, selectedColab])
+
+  // Obtener lista de colaboradores únicos para el filtro
+  const colaboradoresUnicos = useMemo(() => {
+      const names = logs.map(l => l.nombre);
+      return [...new Set(names)].sort();
+  }, [logs]);
+
+  const exportToExcel = () => {
+    // Generar CSV simple
+    const headers = ['Fecha', 'Hora', 'Colaborador', 'Celular', 'Marcacion', 'Estado'];
+    const csvRows = [headers.join(',')];
+    
+    filteredLogs.forEach(log => {
+        const d = parseDate(log.timestamp);
+        const fecha = fmtFecha(d);
+        const hora = fmtHora(d);
+        let estado = 'OK';
+        
+        if (log.tipo === 'Ingreso') {
+            const hours = d.getHours();
+            const minutes = d.getMinutes();
+            if (hours > 9 || (hours === 9 && minutes > 5)) estado = 'Tardanza';
+        }
+
+        const row = [
+            `"${fecha}"`, `"${hora}"`, `"${log.nombre}"`, `"${log.celular}"`, `"${log.tipo}"`, `"${estado}"`
+        ];
+        csvRows.push(row.join(','));
+    });
+
+    const csvData = "\uFEFF" + csvRows.join('\n'); // \uFEFF for Excel UTF-8 BOM
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Reporte_Asistencia_${fmtFecha(new Date())}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const tipoColor = (tipo) => tipo === 'Ingreso' ? '#10b981' : tipo === 'Almuerzo' ? '#f59e0b' : tipo === 'Regreso Almuerzo' ? '#818cf8' : tipo === 'Salida' ? '#f43f5e' : '#94a3b8'
 
@@ -265,20 +342,35 @@ const AdminView = () => {
         </div>
       </header>
 
-      <div style={{ display:'flex', gap:'0.8rem', marginBottom:'2rem', borderBottom:'1px solid rgba(255,255,255,0.1)', paddingBottom:'1rem' }}>
+      <div style={{ display:'flex', gap:'0.8rem', marginBottom:'2rem', borderBottom:'1px solid rgba(255,255,255,0.1)', paddingBottom:'1rem', flexWrap: 'wrap' }}>
         {[['dashboard','📊 Dashboard'],['en-vivo','⚡ Registros en Vivo']].map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} style={{ padding:'0.6rem 1.2rem', background: tab === t ? '#6366f1' : 'transparent', color: tab === t ? 'white' : '#94a3b8', border: tab === t ? 'none' : '1px solid rgba(255,255,255,0.1)', borderRadius:'12px', cursor:'pointer', fontWeight:'600' }}>{label}</button>
         ))}
+        
+        {/* Controles Empresariales */}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <select 
+                value={selectedColab} 
+                onChange={(e) => setSelectedColab(e.target.value)}
+                style={{ padding: '0.6rem 1rem', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', outline: 'none' }}
+            >
+                <option value="">👥 Todos los Colaboradores</option>
+                {colaboradoresUnicos.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <button onClick={exportToExcel} style={{ padding:'0.6rem 1.2rem', background:'#10b981', color:'white', border:'none', borderRadius:'12px', cursor:'pointer', fontWeight:'600', display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                📥 Exportar Excel
+            </button>
+        </div>
       </div>
 
       {tab === 'dashboard' && (
         <div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:'1rem', marginBottom:'2rem' }}>
             {[
-              { label:'Presentes Hoy', value: stats.presentes, icon:'👥', color:'#10b981' },
+              { label: selectedColab ? `Ingresos Hoy` : 'Presentes Hoy', value: stats.presentes, icon:'👥', color:'#10b981' },
+              { label:'Tardanzas Hoy', value: stats.tardanzas, icon:'⏰', color:'#f43f5e' },
               { label:'Permisos/Descansos', value: stats.permisos, icon:'📋', color:'#f59e0b' },
-              { label:'Total Movimientos Hoy', value: stats.totalHoy, icon:'⚡', color:'#6366f1' },
-              { label:'Histórico Total', value: logs.length, icon:'📁', color:'#818cf8' },
+              { label:'Total Movimientos', value: selectedColab ? filteredLogs.length : logs.length, icon:'📁', color:'#818cf8' },
             ].map(s => (
               <Card key={s.label} style={{ padding:'1.5rem' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'1rem' }}>
@@ -292,18 +384,57 @@ const AdminView = () => {
             ))}
           </div>
 
-          <Card style={{ padding:'2rem' }}>
-            <h3 style={{ marginBottom:'1.5rem' }}>Ingresos — Últimos 7 días</h3>
-            <div style={{ display:'flex', alignItems:'flex-end', gap:'0.5rem', height:'160px' }}>
-              {stats.daysData.map(d => (
-                <div key={d.name} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:'0.4rem', height:'100%', justifyContent:'flex-end' }}>
-                  <span style={{ fontSize:'0.8rem', color:'#94a3b8', fontWeight:'700' }}>{d.count || ''}</span>
-                  <div style={{ width:'100%', background:'linear-gradient(180deg,#6366f1,#4f46e5)', borderRadius:'6px 6px 0 0', height:`${(d.count / stats.maxCount) * 100}%`, minHeight: d.count > 0 ? '8px' : '3px', opacity: d.count > 0 ? 1 : 0.2, transition:'height 0.5s ease' }} />
-                  <span style={{ fontSize:'0.75rem', color:'#94a3b8' }}>{d.name}</span>
+          {!selectedColab ? (
+            <Card style={{ padding:'2rem' }}>
+              <h3 style={{ marginBottom:'1.5rem' }}>Ingresos — Últimos 7 días</h3>
+              <div style={{ display:'flex', alignItems:'flex-end', gap:'0.5rem', height:'160px' }}>
+                {stats.daysData.map(d => (
+                  <div key={d.name} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:'0.4rem', height:'100%', justifyContent:'flex-end' }}>
+                    <span style={{ fontSize:'0.8rem', color:'#94a3b8', fontWeight:'700' }}>{d.count || ''}</span>
+                    <div style={{ width:'100%', background:'linear-gradient(180deg,#6366f1,#4f46e5)', borderRadius:'6px 6px 0 0', height:`${(d.count / stats.maxCount) * 100}%`, minHeight: d.count > 0 ? '8px' : '3px', opacity: d.count > 0 ? 1 : 0.2, transition:'height 0.5s ease' }} />
+                    <span style={{ fontSize:'0.75rem', color:'#94a3b8' }}>{d.name}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : (
+            <Card style={{ padding:'2rem' }}>
+              <h3 style={{ marginBottom:'1.5rem' }}>Evolución de Ingresos - {selectedColab}</h3>
+              <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>Línea de tiempo de los últimos ingresos. La línea roja marca el límite de las 09:05.</p>
+              
+              <div style={{ position: 'relative', height: '200px', width: '100%', borderBottom: '1px solid #334155', borderLeft: '1px solid #334155', paddingBottom: '20px', paddingLeft: '10px' }}>
+                
+                {/* Línea base 09:05 */}
+                <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, borderTop: '2px dashed #f43f5e', zIndex: 1 }}>
+                    <span style={{ position: 'absolute', right: 0, top: '-20px', color: '#f43f5e', fontSize: '0.8rem', fontWeight: 'bold' }}>09:05 Límite</span>
                 </div>
-              ))}
-            </div>
-          </Card>
+
+                {stats.lineData.length > 0 ? (
+                    <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'space-around', position: 'relative', zIndex: 2 }}>
+                        {stats.lineData.map((d, i) => {
+                            // Calcular posición relativa al límite de las 9:05 (9.083 horas)
+                            const limitValue = 9 + (5/60);
+                            const diff = d.timeValue - limitValue;
+                            // Amplificamos la diferencia para que sea visual (1 hora = 50px)
+                            const topPos = `calc(50% + ${diff * 50}px)`;
+
+                            return (
+                                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                                    <div style={{ position: 'absolute', top: topPos, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                        <span style={{ color: d.isLate ? '#f43f5e' : '#10b981', fontWeight: 'bold', fontSize: '0.85rem', marginBottom: '4px', textShadow: '0 0 5px rgba(0,0,0,0.5)' }}>{d.horaStr}</span>
+                                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: d.isLate ? '#f43f5e' : '#10b981', boxShadow: `0 0 10px ${d.isLate ? '#f43f5e' : '#10b981'}` }} />
+                                    </div>
+                                    <span style={{ position: 'absolute', bottom: '-25px', color: '#94a3b8', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{d.fecha}</span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>No hay ingresos recientes</div>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
@@ -319,17 +450,30 @@ const AdminView = () => {
                 </tr>
               </thead>
               <tbody>
-                {logs.length === 0
+                {filteredLogs.length === 0
                   ? <tr><td colSpan="4" style={{ padding:'3rem', textAlign:'center', color:'#94a3b8' }}>No hay datos aún.</td></tr>
-                  : logs.map(log => {
+                  : filteredLogs.map(log => {
                     const d = parseDate(log.timestamp)
+                    
+                    // Lógica para detectar tardanza
+                    let isLate = false;
+                    if (log.tipo === 'Ingreso') {
+                        const hours = d.getHours();
+                        const minutes = d.getMinutes();
+                        if (hours > 9 || (hours === 9 && minutes > 5)) {
+                            isLate = true;
+                        }
+                    }
+
                     return (
-                      <tr key={log.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+                      <tr key={log.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', background: isLate ? 'rgba(244, 63, 94, 0.05)' : 'transparent' }}>
                         <td style={{ padding:'1rem 1.5rem' }}>
-                          <div style={{ fontWeight:'600' }}>{fmtHora(d)}</div>
+                          <div style={{ fontWeight:'600', color: isLate ? '#f43f5e' : 'white' }}>
+                            {fmtHora(d)} {isLate && <span style={{ fontSize: '0.7rem', background: '#f43f5e', color: 'white', padding: '2px 6px', borderRadius: '4px', marginLeft: '5px' }}>TARDE</span>}
+                          </div>
                           <div style={{ color:'#94a3b8', fontSize:'0.8rem' }}>{fmtFecha(d)}</div>
                         </td>
-                        <td style={{ padding:'1rem 1.5rem', fontWeight:'700' }}>{log.nombre}</td>
+                        <td style={{ padding:'1rem 1.5rem', fontWeight:'700', color: isLate ? '#f43f5e' : 'white' }}>{log.nombre}</td>
                         <td style={{ padding:'1rem 1.5rem', color:'#94a3b8' }}>{log.celular}</td>
                         <td style={{ padding:'1rem 1.5rem' }}>
                           <span style={{ padding:'5px 12px', borderRadius:'10px', fontSize:'0.85rem', fontWeight:'700', background:`${tipoColor(log.tipo)}22`, color: tipoColor(log.tipo) }}>{log.tipo}</span>
