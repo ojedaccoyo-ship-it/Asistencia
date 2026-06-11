@@ -152,7 +152,8 @@ const MobileView = () => {
               <h3 style={{ marginBottom:'1.5rem' }}>¡QR Detectado!</h3>
               <div style={{ display:'grid', gap:'0.8rem' }}>
                 <button onClick={() => register('Ingreso')} style={{ padding:'1rem', background:'rgba(16,185,129,0.15)', color:'#10b981', border:'1px solid #10b981', borderRadius:'14px', cursor:'pointer', fontWeight:'700' }}>👋 Marcar Ingreso</button>
-                <button onClick={() => register('Almuerzo')} style={{ padding:'1rem', background:'rgba(245,158,11,0.15)', color:'#f59e0b', border:'1px solid #f59e0b', borderRadius:'14px', cursor:'pointer', fontWeight:'700' }}>🍔 Marcar Almuerzo</button>
+                <button onClick={() => register('Almuerzo')} style={{ padding:'1rem', background:'rgba(245,158,11,0.15)', color:'#f59e0b', border:'1px solid #f59e0b', borderRadius:'14px', cursor:'pointer', fontWeight:'700' }}>🍔 Salida a Almuerzo</button>
+                <button onClick={() => register('Regreso Almuerzo')} style={{ padding:'1rem', background:'rgba(99,102,241,0.15)', color:'#818cf8', border:'1px solid #818cf8', borderRadius:'14px', cursor:'pointer', fontWeight:'700' }}>🔙 Regreso de Almuerzo</button>
                 <button onClick={() => register('Salida')} style={{ padding:'1rem', background:'rgba(244,63,94,0.15)', color:'#f43f5e', border:'1px solid #f43f5e', borderRadius:'14px', cursor:'pointer', fontWeight:'700' }}>🚪 Marcar Salida</button>
               </div>
             </div>
@@ -250,7 +251,7 @@ const AdminView = () => {
     return { presentes, permisos, totalHoy, daysData, maxCount }
   }, [logs])
 
-  const tipoColor = (tipo) => tipo === 'Ingreso' ? '#10b981' : tipo === 'Almuerzo' ? '#f59e0b' : tipo === 'Salida' ? '#f43f5e' : '#818cf8'
+  const tipoColor = (tipo) => tipo === 'Ingreso' ? '#10b981' : tipo === 'Almuerzo' ? '#f59e0b' : tipo === 'Regreso Almuerzo' ? '#818cf8' : tipo === 'Salida' ? '#f43f5e' : '#94a3b8'
 
   return (
     <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'2rem 1rem' }}>
