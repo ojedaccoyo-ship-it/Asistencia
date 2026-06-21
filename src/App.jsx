@@ -225,7 +225,9 @@ const AdminView = () => {
   const [selectedColab, setSelectedColab] = useState('')
   const [selectedTipo, setSelectedTipo] = useState('')
   const [selectedMes, setSelectedMes] = useState('')
-
+  const [isAuthenticated, setIsAuthenticated] = useState(sessionStorage.getItem('adminAuth') === 'true')
+  const [passInput, setPassInput] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
   useEffect(() => {
     supabase.from('asistencia').select('*').order('timestamp', { ascending: false }).limit(500)
       .then(({ data, error }) => { if (error) { setDbStatus('error') } else { setLogs(data || []); setDbStatus('ok') } })
@@ -337,6 +339,44 @@ const AdminView = () => {
 
   const tipoColor = (tipo) => tipo === 'Ingreso' ? '#10b981' : tipo === 'Almuerzo' ? '#f59e0b' : tipo === 'Regreso Almuerzo' ? '#818cf8' : tipo === 'Salida' ? '#f43f5e' : '#94a3b8'
 
+  const handleLogin = (e) => {
+    e.preventDefault()
+    if (passInput === 'admin2026') { // Contraseña por defecto
+       sessionStorage.setItem('adminAuth', 'true')
+       setIsAuthenticated(true)
+    } else {
+       setErrorMsg('Contraseña incorrecta. Intente de nuevo.')
+    }
+  }
+
+  if (!isAuthenticated) {
+     return (
+       <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+         <Card style={{ width:'100%', maxWidth:'400px', textAlign:'center', padding:'2.5rem' }}>
+           <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>🔒</div>
+           <h2 style={{ marginBottom:'0.5rem' }}>Acceso Restringido</h2>
+           <p style={{ color:'#94a3b8', marginBottom:'2rem' }}>Ingrese la contraseña de administrador</p>
+           <form onSubmit={handleLogin}>
+             <input 
+                type="password" 
+                placeholder="Contraseña" 
+                value={passInput} 
+                onChange={e => setPassInput(e.target.value)} 
+                style={{ width:'100%', padding:'1rem', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'12px', color:'white', marginBottom:'1rem', boxSizing:'border-box', textAlign:'center', letterSpacing:'0.2rem', fontSize:'1.2rem' }} 
+             />
+             {errorMsg && <div style={{ color:'#f43f5e', fontSize:'0.85rem', marginBottom:'1rem', fontWeight:'bold' }}>{errorMsg}</div>}
+             <button type="submit" style={{ width:'100%', padding:'1rem', background:'linear-gradient(135deg,#6366f1,#4f46e5)', color:'white', border:'none', borderRadius:'12px', fontWeight:'bold', cursor:'pointer', fontSize:'1rem' }}>Desbloquear Dashboard</button>
+           </form>
+         </Card>
+       </div>
+     )
+  }
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('adminAuth')
+    setIsAuthenticated(false)
+  }
+
   return (
     <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'2rem 1rem' }}>
       <header style={{ marginBottom:'2rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'1rem' }}>
@@ -344,8 +384,11 @@ const AdminView = () => {
           <h1 style={{ fontSize:'2.2rem', margin:0, background:'linear-gradient(to right,#818cf8,#34d399)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>Centro de Operaciones</h1>
           <p style={{ color:'#94a3b8', margin:0 }}>Panel de Administración</p>
         </div>
-        <div style={{ padding:'8px 18px', borderRadius:'20px', fontSize:'0.85rem', fontWeight:'bold', background: dbStatus === 'ok' ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)', color: dbStatus === 'ok' ? '#10b981' : '#f43f5e', border:'1px solid currentColor' }}>
-          {dbStatus === 'ok' ? '● CONECTADO EN VIVO' : dbStatus === 'error' ? '● ERROR DE RED' : '● VERIFICANDO...'}
+        <div style={{ display:'flex', gap:'1rem', alignItems:'center' }}>
+          <div style={{ padding:'8px 18px', borderRadius:'20px', fontSize:'0.85rem', fontWeight:'bold', background: dbStatus === 'ok' ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)', color: dbStatus === 'ok' ? '#10b981' : '#f43f5e', border:'1px solid currentColor' }}>
+            {dbStatus === 'ok' ? '● CONECTADO EN VIVO' : dbStatus === 'error' ? '● ERROR DE RED' : '● VERIFICANDO...'}
+          </div>
+          <button onClick={handleLogout} style={{ padding:'8px 18px', background:'transparent', border:'1px solid rgba(244,63,94,0.3)', color:'#f43f5e', borderRadius:'20px', cursor:'pointer', fontWeight:'bold', fontSize:'0.85rem' }}>Cerrar Sesión</button>
         </div>
       </header>
 
