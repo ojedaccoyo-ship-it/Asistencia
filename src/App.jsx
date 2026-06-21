@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { motion } from 'framer-motion'
 import confetti from 'canvas-confetti'
+import { FileEdit } from 'lucide-react'
 import { supabase } from './lib/supabase'
 
 // --- Helpers de fecha JS puro ---
