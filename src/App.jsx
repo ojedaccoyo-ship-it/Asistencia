@@ -228,6 +228,12 @@ const AdminView = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(sessionStorage.getItem('adminAuth') === 'true')
   const [passInput, setPassInput] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+  
+  // Estado para la edición de registros
+  const [editingLogId, setEditingLogId] = useState(null)
+  const [editDate, setEditDate] = useState('')
+  const [editTime, setEditTime] = useState('')
+  const [editTipo, setEditTipo] = useState('')
   useEffect(() => {
     supabase.from('asistencia').select('*').order('timestamp', { ascending: false }).limit(500)
       .then(({ data, error }) => { if (error) { setDbStatus('error') } else { setLogs(data || []); setDbStatus('ok') } })
@@ -375,6 +381,36 @@ const AdminView = () => {
   const handleLogout = () => {
     sessionStorage.removeItem('adminAuth')
     setIsAuthenticated(false)
+  }
+
+  // Funciones de Edición
+  const handleEditClick = (log) => {
+    const d = new Date(log.timestamp)
+    const pad = (n) => n.toString().padStart(2, '0')
+    setEditDate(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`)
+    setEditTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`)
+    setEditTipo(log.tipo)
+    setEditingLogId(log.id)
+  }
+
+  const handleSaveEdit = async () => {
+    const newTimestamp = new Date(`${editDate}T${editTime}:00`).toISOString()
+    try {
+      const { error } = await supabase.from('asistencia').update({
+        timestamp: newTimestamp,
+        tipo: editTipo
+      }).eq('id', editingLogId)
+      
+      if (error) throw error
+      
+      // Actualización local rápida para no esperar el canal
+      setLogs(cur => cur.map(l => l.id === editingLogId ? { ...l, timestamp: newTimestamp, tipo: editTipo } : l))
+      setEditingLogId(null)
+      alert("Registro actualizado correctamente")
+    } catch (err) {
+      console.error(err)
+      alert('Error al actualizar el registro.')
+    }
   }
 
   return (
@@ -557,7 +593,7 @@ const AdminView = () => {
             <table style={{ width:'100%', borderCollapse:'collapse', textAlign:'left' }}>
               <thead>
                 <tr style={{ borderBottom:'1px solid rgba(255,255,255,0.1)' }}>
-                  {['FECHA Y HORA','COLABORADOR','CELULAR','MARCACIÓN'].map(h => (
+                  {['FECHA Y HORA','COLABORADOR','CELULAR','MARCACIÓN', 'ACCIONES'].map(h => (
                     <th key={h} style={{ padding:'1.2rem 1.5rem', color:'#94a3b8', fontSize:'0.8rem', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.05em' }}>{h}</th>
                   ))}
                 </tr>
@@ -578,7 +614,31 @@ const AdminView = () => {
                         }
                     }
 
-                    return (
+                    return editingLogId === log.id ? (
+                      <tr key={log.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', background: 'rgba(99, 102, 241, 0.1)' }}>
+                        <td style={{ padding:'1rem 1.5rem' }}>
+                          <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #6366f1', color: 'white', borderRadius: '8px', marginBottom: '4px', display: 'block', width: '130px' }} />
+                          <input type="time" value={editTime} onChange={e => setEditTime(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #6366f1', color: 'white', borderRadius: '8px', display: 'block', width: '130px' }} />
+                        </td>
+                        <td style={{ padding:'1rem 1.5rem', fontWeight:'700', color: 'white' }}>{log.nombre}</td>
+                        <td style={{ padding:'1rem 1.5rem', color:'#94a3b8' }}>{log.celular}</td>
+                        <td style={{ padding:'1rem 1.5rem' }}>
+                          <select value={editTipo} onChange={e => setEditTipo(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #6366f1', color: 'white', borderRadius: '8px' }}>
+                            <option value="Ingreso">Ingreso</option>
+                            <option value="Almuerzo">Salida Almuerzo</option>
+                            <option value="Regreso Almuerzo">Regreso Almuerzo</option>
+                            <option value="Salida">Salida</option>
+                            <option value="Permiso Personal">Permiso Personal</option>
+                            <option value="Permiso Médico">Permiso Médico</option>
+                            <option value="Día de Descanso">Día de Descanso</option>
+                          </select>
+                        </td>
+                        <td style={{ padding:'1rem 1.5rem' }}>
+                          <button onClick={handleSaveEdit} style={{ background: '#10b981', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', marginRight: '8px', fontWeight: 'bold' }}>Guardar</button>
+                          <button onClick={() => setEditingLogId(null)} style={{ background: 'transparent', color: '#94a3b8', border: '1px solid #94a3b8', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer' }}>Cancelar</button>
+                        </td>
+                      </tr>
+                    ) : (
                       <tr key={log.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', background: isLate ? 'rgba(244, 63, 94, 0.05)' : 'transparent' }}>
                         <td style={{ padding:'1rem 1.5rem' }}>
                           <div style={{ fontWeight:'600', color: isLate ? '#f43f5e' : 'white' }}>
@@ -590,6 +650,12 @@ const AdminView = () => {
                         <td style={{ padding:'1rem 1.5rem', color:'#94a3b8' }}>{log.celular}</td>
                         <td style={{ padding:'1rem 1.5rem' }}>
                           <span style={{ padding:'5px 12px', borderRadius:'10px', fontSize:'0.85rem', fontWeight:'700', background:`${tipoColor(log.tipo)}22`, color: tipoColor(log.tipo) }}>{log.tipo}</span>
+                        </td>
+                        <td style={{ padding:'1rem 1.5rem' }}>
+                          <button onClick={() => handleEditClick(log)} style={{ background: 'transparent', border: 'none', color: '#818cf8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }} title="Modificar Marcación">
+                            <FileEdit size={18} />
+                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Editar</span>
+                          </button>
                         </td>
                       </tr>
                     )
