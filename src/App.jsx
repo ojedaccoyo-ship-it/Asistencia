@@ -60,9 +60,20 @@ const MobileView = () => {
   const [status, setStatus] = useState('idle')
   const [myLogs, setMyLogs] = useState([])
 
+  // Estados para solicitud de permiso con fecha futura
+  const [permTipo, setPermTipo] = useState('Permiso Personal')
+  const [permFecha, setPermFecha] = useState('')
+  const [permMotivo, setPermMotivo] = useState('')
+  const [permEnviado, setPermEnviado] = useState(false)
+
+  // Estados para justificante
+  const [justFecha, setJustFecha] = useState('')
+  const [justMotivo, setJustMotivo] = useState('')
+  const [justEnviado, setJustEnviado] = useState(false)
+
   useEffect(() => {
     if (empPhone && tab === 'stats') {
-      supabase.from('asistencia').select('*').eq('celular', empPhone).order('timestamp', { ascending: false }).limit(20)
+      supabase.from('asistencia').select('*').eq('celular', empPhone).order('timestamp', { ascending: false }).limit(30)
         .then(({ data }) => data && setMyLogs(data))
     }
   }, [empPhone, tab])
@@ -95,10 +106,26 @@ const MobileView = () => {
     setTimeout(() => { setStatus('idle'); setTab('stats') }, 3000)
   }
 
-  const requestPerm = async (tipo) => {
-    const rec = { nombre: empName, celular: empPhone, tipo, timestamp: new Date().toISOString() }
-    try { await supabase.from('asistencia').insert([rec]); alert('Solicitud enviada al administrador.') } catch (e) { alert('Error al enviar.') }
-    setTab('stats')
+  const handleSolicitarPermiso = async () => {
+    if (!permFecha || !permMotivo.trim()) return alert('Completa la fecha y el motivo')
+    const ts = new Date(`${permFecha}T08:00:00`).toISOString()
+    const rec = { nombre: empName, celular: empPhone, tipo: permTipo, timestamp: ts, motivo: permMotivo }
+    try {
+      await supabase.from('asistencia').insert([rec])
+      setPermEnviado(true)
+      setPermFecha(''); setPermMotivo('');
+    } catch (e) { alert('Error al enviar la solicitud.') }
+  }
+
+  const handleEnviarJustificante = async () => {
+    if (!justFecha || !justMotivo.trim()) return alert('Completa la fecha y el motivo')
+    const ts = new Date(`${justFecha}T08:00:00`).toISOString()
+    const rec = { nombre: empName, celular: empPhone, tipo: 'Justificante', timestamp: ts, motivo: justMotivo }
+    try {
+      await supabase.from('asistencia').insert([rec])
+      setJustEnviado(true)
+      setJustFecha(''); setJustMotivo('');
+    } catch (e) { alert('Error al enviar el justificante.') }
   }
 
   if (!empName) {
@@ -176,14 +203,18 @@ const MobileView = () => {
             ? <Card><p style={{ textAlign:'center', color:'gray' }}>No tienes registros aún.</p></Card>
             : myLogs.map(log => {
               const d = parseDate(log.timestamp)
+              const tipoIconos = { 'Ingreso':'👋', 'Ingreso Justificado':'✅', 'Almuerzo':'🍔', 'Regreso Almuerzo':'🔙', 'Salida':'🚪', 'Permiso Médico':'🏥', 'Permiso Personal':'👤', 'Día de Descanso':'🌴', 'Justificante':'📝' }
+              const tipoColores = { 'Permiso Médico':'#f59e0b', 'Permiso Personal':'#818cf8', 'Día de Descanso':'#10b981', 'Justificante':'#f59e0b', 'Ingreso Justificado':'#10b981' }
+              const isFuture = d > new Date()
               return (
-                <Card key={log.id} style={{ padding:'1rem', display:'flex', alignItems:'center', gap:'1rem' }}>
-                  <div style={{ fontSize:'1.5rem' }}>{log.tipo === 'Ingreso' ? '👋' : log.tipo === 'Almuerzo' ? '🍔' : log.tipo === 'Salida' ? '🚪' : '📋'}</div>
+                <Card key={log.id} style={{ padding:'1rem', display:'flex', alignItems:'center', gap:'1rem', opacity: isFuture ? 0.75 : 1, border: isFuture ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ fontSize:'1.5rem' }}>{tipoIconos[log.tipo] || '📋'}</div>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:'700' }}>{log.tipo}</div>
+                    <div style={{ fontWeight:'700', color: tipoColores[log.tipo] || 'white' }}>{log.tipo} {isFuture && <span style={{ fontSize:'0.65rem', background:'rgba(99,102,241,0.2)', color:'#818cf8', padding:'2px 6px', borderRadius:'6px', marginLeft:'4px' }}>PROGRAMADO</span>}</div>
                     <div style={{ color:'#94a3b8', fontSize:'0.8rem' }}>{fmtFecha(d)}</div>
+                    {log.motivo && <div style={{ color:'#64748b', fontSize:'0.75rem', marginTop:'2px', fontStyle:'italic' }}>Motivo: {log.motivo}</div>}
                   </div>
-                  <div style={{ fontWeight:'700' }}>{fmtHora(d)}</div>
+                  <div style={{ fontWeight:'700', fontSize:'0.85rem' }}>{fmtHora(d)}</div>
                 </Card>
               )
             })
@@ -192,24 +223,79 @@ const MobileView = () => {
       )}
 
       {tab === 'permisos' && (
-        <Card style={{ width:'100%', maxWidth:'400px', borderRadius:'28px' }}>
-          <h2 style={{ marginBottom:'0.5rem' }}>📋 Solicitar Permiso</h2>
-          <p style={{ color:'#94a3b8', marginBottom:'1.5rem' }}>Notifica al administrador si necesitas ausentarte.</p>
-          <div style={{ display:'grid', gap:'0.8rem' }}>
-            <button onClick={() => requestPerm('Permiso Médico')} style={{ padding:'1rem', background:'rgba(245,158,11,0.15)', color:'#f59e0b', border:'1px solid #f59e0b', borderRadius:'14px', cursor:'pointer', fontWeight:'700' }}>🏥 Salud / Médico</button>
-            <button onClick={() => requestPerm('Permiso Personal')} style={{ padding:'1rem', background:'rgba(99,102,241,0.15)', color:'#818cf8', border:'1px solid #818cf8', borderRadius:'14px', cursor:'pointer', fontWeight:'700' }}>👤 Asunto Personal</button>
-            <button onClick={() => requestPerm('Día de Descanso')} style={{ padding:'1rem', background:'rgba(16,185,129,0.15)', color:'#10b981', border:'1px solid #10b981', borderRadius:'14px', cursor:'pointer', fontWeight:'700' }}>🌴 Día de Descanso</button>
-          </div>
-        </Card>
+        <div style={{ width:'100%', maxWidth:'400px', display:'flex', flexDirection:'column', gap:'1rem' }}>
+          <h2 style={{ margin:'0 0 0.5rem 0' }}>🗓️ Solicitar Permiso</h2>
+          <p style={{ color:'#94a3b8', margin:'0 0 0.5rem 0', fontSize:'0.9rem' }}>Pide tu permiso con anticipación. El administrador lo verá en su panel.</p>
+
+          {permEnviado ? (
+            <Card style={{ textAlign:'center', padding:'2rem' }}>
+              <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>✅</div>
+              <h3>¡Solicitud Enviada!</h3>
+              <p style={{ color:'#94a3b8' }}>El administrador revisará tu permiso.</p>
+              <button onClick={() => setPermEnviado(false)} style={{ marginTop:'1rem', padding:'0.8rem 1.5rem', background:'#6366f1', color:'white', border:'none', borderRadius:'12px', cursor:'pointer', fontWeight:'bold' }}>Nueva Solicitud</button>
+            </Card>
+          ) : (
+            <Card style={{ padding:'1.5rem', display:'flex', flexDirection:'column', gap:'1rem' }}>
+              <div>
+                <label style={{ color:'#94a3b8', fontSize:'0.8rem', display:'block', marginBottom:'0.5rem' }}>TIPO DE PERMISO</label>
+                <select value={permTipo} onChange={e => setPermTipo(e.target.value)} style={{ width:'100%', padding:'0.8rem', background:'rgba(0,0,0,0.4)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'10px', color:'white', fontSize:'1rem', boxSizing:'border-box' }}>
+                  <option value="Permiso Personal">👤 Asunto Personal</option>
+                  <option value="Permiso Médico">🏥 Cita Médica / Salud</option>
+                  <option value="Día de Descanso">🌴 Día de Descanso</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ color:'#94a3b8', fontSize:'0.8rem', display:'block', marginBottom:'0.5rem' }}>FECHA DEL PERMISO</label>
+                <input type="date" value={permFecha} onChange={e => setPermFecha(e.target.value)} style={{ width:'100%', padding:'0.8rem', background:'rgba(0,0,0,0.4)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'10px', color:'white', fontSize:'1rem', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <label style={{ color:'#94a3b8', fontSize:'0.8rem', display:'block', marginBottom:'0.5rem' }}>MOTIVO (obligatorio)</label>
+                <textarea value={permMotivo} onChange={e => setPermMotivo(e.target.value)} placeholder="Describe brevemente el motivo de tu permiso..." rows={3} style={{ width:'100%', padding:'0.8rem', background:'rgba(0,0,0,0.4)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'10px', color:'white', fontSize:'0.95rem', boxSizing:'border-box', resize:'none', fontFamily:'inherit' }} />
+              </div>
+              <button onClick={handleSolicitarPermiso} style={{ padding:'1rem', background:'linear-gradient(135deg,#6366f1,#4f46e5)', color:'white', border:'none', borderRadius:'12px', cursor:'pointer', fontWeight:'bold', fontSize:'1rem' }}>Enviar Solicitud</button>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {tab === 'justificante' && (
+        <div style={{ width:'100%', maxWidth:'400px', display:'flex', flexDirection:'column', gap:'1rem' }}>
+          <h2 style={{ margin:'0 0 0.5rem 0' }}>📝 Enviar Justificante</h2>
+          <p style={{ color:'#94a3b8', margin:'0 0 0.5rem 0', fontSize:'0.9rem' }}>¿No pudiste escanear o marcar tu asistencia? Explica el motivo aquí.</p>
+
+          {justEnviado ? (
+            <Card style={{ textAlign:'center', padding:'2rem' }}>
+              <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>📨</div>
+              <h3>¡Justificante Enviado!</h3>
+              <p style={{ color:'#94a3b8' }}>El administrador revisará tu caso y actualizará tu registro si corresponde.</p>
+              <button onClick={() => setJustEnviado(false)} style={{ marginTop:'1rem', padding:'0.8rem 1.5rem', background:'#f59e0b', color:'white', border:'none', borderRadius:'12px', cursor:'pointer', fontWeight:'bold' }}>Nuevo Justificante</button>
+            </Card>
+          ) : (
+            <Card style={{ padding:'1.5rem', display:'flex', flexDirection:'column', gap:'1rem' }}>
+              <div style={{ padding:'0.8rem', background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'10px', color:'#f59e0b', fontSize:'0.85rem' }}>
+                ⚠️ Este formulario es para cuando <strong>no pudiste escanear</strong> o <strong>no marcaste tu salida/ingreso</strong>. El administrador revisará y corregirá tu registro.
+              </div>
+              <div>
+                <label style={{ color:'#94a3b8', fontSize:'0.8rem', display:'block', marginBottom:'0.5rem' }}>FECHA EN QUE FALLÓ EL MARCADO</label>
+                <input type="date" value={justFecha} onChange={e => setJustFecha(e.target.value)} style={{ width:'100%', padding:'0.8rem', background:'rgba(0,0,0,0.4)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'10px', color:'white', fontSize:'1rem', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <label style={{ color:'#94a3b8', fontSize:'0.8rem', display:'block', marginBottom:'0.5rem' }}>¿QUÉ PASÓ? (obligatorio)</label>
+                <textarea value={justMotivo} onChange={e => setJustMotivo(e.target.value)} placeholder="Ej: No pude escanear el QR porque el kiosko no funcionaba, pero sí asistí a las 9:00am..." rows={4} style={{ width:'100%', padding:'0.8rem', background:'rgba(0,0,0,0.4)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'10px', color:'white', fontSize:'0.95rem', boxSizing:'border-box', resize:'none', fontFamily:'inherit' }} />
+              </div>
+              <button onClick={handleEnviarJustificante} style={{ padding:'1rem', background:'linear-gradient(135deg,#f59e0b,#d97706)', color:'white', border:'none', borderRadius:'12px', cursor:'pointer', fontWeight:'bold', fontSize:'1rem' }}>Enviar Justificante</button>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* Bottom Nav */}
       <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'rgba(2,6,23,0.95)', backdropFilter:'blur(20px)', borderTop:'1px solid rgba(255,255,255,0.1)', padding:'0.8rem 1rem', display:'flex', justifyContent:'center', zIndex:100 }}>
-        <div style={{ display:'flex', gap:'2rem', maxWidth:'400px', width:'100%', justifyContent:'space-around' }}>
-          {[['scan','📷','Escanear'],['stats','📋','Mi Historial'],['permisos','🗓️','Permisos']].map(([t,icon,label]) => (
+        <div style={{ display:'flex', gap:'1rem', maxWidth:'440px', width:'100%', justifyContent:'space-around' }}>
+          {[['scan','📷','Escanear'],['stats','📋','Mi Historial'],['permisos','🗓️','Permiso'],['justificante','📝','Justificante']].map(([t,icon,label]) => (
             <div key={t} onClick={() => setTab(t)} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.2rem', cursor:'pointer', color: tab === t ? '#6366f1' : '#94a3b8' }}>
               <span style={{ fontSize:'1.4rem' }}>{icon}</span>
-              <span style={{ fontSize:'0.7rem', fontWeight:'600' }}>{label}</span>
+              <span style={{ fontSize:'0.65rem', fontWeight:'600', textAlign:'center' }}>{label}</span>
             </div>
           ))}
         </div>
