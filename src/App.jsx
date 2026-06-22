@@ -243,6 +243,11 @@ const AdminView = () => {
   const [newDate, setNewDate] = useState('')
   const [newTime, setNewTime] = useState('')
   const [newTipo, setNewTipo] = useState('Ingreso')
+
+  // Estado para módulo de descanso rápido
+  const [descansoColab, setDescansoColab] = useState('')
+  const [descansoDate, setDescansoDate] = useState('')
+
   useEffect(() => {
     supabase.from('asistencia').select('*').order('timestamp', { ascending: false }).limit(500)
       .then(({ data, error }) => { if (error) { setDbStatus('error') } else { setLogs(data || []); setDbStatus('ok') } })
@@ -453,6 +458,32 @@ const AdminView = () => {
     }
   }
 
+  const handleAssignDescanso = async () => {
+    if (!descansoColab || !descansoDate) return alert("Selecciona el colaborador y la fecha")
+    
+    // Buscar si ya tiene un registro de descanso ese día (opcional, pero buena práctica)
+    const newTimestamp = new Date(`${descansoDate}T08:00:00`).toISOString()
+    
+    // Encontrar el celular del colaborador basado en registros anteriores (para mantener consistencia)
+    const colabInfo = logs.find(l => l.nombre === descansoColab)
+    const celular = colabInfo ? colabInfo.celular : 'N/A'
+
+    try {
+      const { error } = await supabase.from('asistencia').insert([{
+        nombre: descansoColab,
+        celular: celular,
+        tipo: 'Día de Descanso',
+        timestamp: newTimestamp
+      }])
+      if (error) throw error
+      setDescansoColab(''); setDescansoDate('');
+      alert(`Día de descanso asignado a ${descansoColab} exitosamente`)
+    } catch (err) {
+      console.error(err)
+      alert('Error al asignar el descanso.')
+    }
+  }
+
   return (
     <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'2rem 1rem' }}>
       <header style={{ marginBottom:'2rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'1rem' }}>
@@ -531,6 +562,38 @@ const AdminView = () => {
               </Card>
             ))}
           </div>
+
+          {/* Módulo Rápido de Descansos */}
+          <Card style={{ padding:'1.5rem', marginBottom:'2rem', background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              🌴 Asignación Rápida de Descanso
+            </h3>
+            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.5rem', marginTop: 0 }}>
+              Programa el día libre de un colaborador. Esto generará automáticamente su registro de asistencia como "Día de Descanso" sin que tengan que escanear nada.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <select 
+                    value={descansoColab} 
+                    onChange={(e) => setDescansoColab(e.target.value)}
+                    style={{ flex: 1, minWidth: '200px', padding: '0.8rem 1rem', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', outline: 'none' }}
+                >
+                    <option value="">👤 Seleccionar Colaborador...</option>
+                    {colaboradoresUnicos.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input 
+                    type="date" 
+                    value={descansoDate} 
+                    onChange={(e) => setDescansoDate(e.target.value)}
+                    style={{ flex: 1, minWidth: '150px', padding: '0.8rem 1rem', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', outline: 'none' }}
+                />
+                <button 
+                    onClick={handleAssignDescanso} 
+                    style={{ padding:'0.8rem 1.5rem', background:'#10b981', color:'white', border:'none', borderRadius:'12px', cursor:'pointer', fontWeight:'bold', display:'flex', alignItems:'center', gap:'0.5rem' }}
+                >
+                    Asignar Descanso
+                </button>
+            </div>
+          </Card>
 
           {!selectedColab ? (
             <Card style={{ padding:'2rem' }}>
