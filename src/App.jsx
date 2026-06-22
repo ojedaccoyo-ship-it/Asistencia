@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { motion } from 'framer-motion'
 import confetti from 'canvas-confetti'
-import { FileEdit } from 'lucide-react'
+import { FileEdit, Trash2, PlusCircle } from 'lucide-react'
 import { supabase } from './lib/supabase'
 
 // --- Helpers de fecha JS puro ---
@@ -235,6 +235,14 @@ const AdminView = () => {
   const [editDate, setEditDate] = useState('')
   const [editTime, setEditTime] = useState('')
   const [editTipo, setEditTipo] = useState('')
+  
+  // Estado para añadir nuevos registros
+  const [isAddingNew, setIsAddingNew] = useState(false)
+  const [newNombre, setNewNombre] = useState('')
+  const [newCelular, setNewCelular] = useState('')
+  const [newDate, setNewDate] = useState('')
+  const [newTime, setNewTime] = useState('')
+  const [newTipo, setNewTipo] = useState('Ingreso')
   useEffect(() => {
     supabase.from('asistencia').select('*').order('timestamp', { ascending: false }).limit(500)
       .then(({ data, error }) => { if (error) { setDbStatus('error') } else { setLogs(data || []); setDbStatus('ok') } })
@@ -404,13 +412,44 @@ const AdminView = () => {
       
       if (error) throw error
       
-      // Actualización local rápida para no esperar el canal
       setLogs(cur => cur.map(l => l.id === editingLogId ? { ...l, timestamp: newTimestamp, tipo: editTipo } : l))
       setEditingLogId(null)
       alert("Registro actualizado correctamente")
     } catch (err) {
       console.error(err)
       alert('Error al actualizar el registro.')
+    }
+  }
+
+  const handleDeleteClick = async (id) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este registro permanentemente?')) return
+    try {
+      const { error } = await supabase.from('asistencia').delete().eq('id', id)
+      if (error) throw error
+      setLogs(cur => cur.filter(l => l.id !== id))
+    } catch (err) {
+      console.error(err)
+      alert('Error al eliminar el registro.')
+    }
+  }
+
+  const handleSaveNew = async () => {
+    if (!newNombre || !newDate || !newTime) return alert("Completa los campos obligatorios")
+    const newTimestamp = new Date(`${newDate}T${newTime}:00`).toISOString()
+    try {
+      const { error } = await supabase.from('asistencia').insert([{
+        nombre: newNombre,
+        celular: newCelular,
+        tipo: newTipo,
+        timestamp: newTimestamp
+      }])
+      if (error) throw error
+      setIsAddingNew(false)
+      setNewNombre(''); setNewCelular(''); setNewDate(''); setNewTime(''); setNewTipo('Ingreso');
+      alert("Registro creado correctamente")
+    } catch (err) {
+      console.error(err)
+      alert('Error al crear el registro.')
     }
   }
 
@@ -590,6 +629,12 @@ const AdminView = () => {
 
       {tab === 'en-vivo' && (
         <Card style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'1rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,0.1)' }}>
+            <h3 style={{ margin:0, color:'#94a3b8' }}>Registros del Sistema</h3>
+            <button onClick={() => setIsAddingNew(!isAddingNew)} style={{ padding:'0.5rem 1rem', background:'#10b981', color:'white', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', alignItems:'center', gap:'0.5rem' }}>
+              <PlusCircle size={18} /> {isAddingNew ? 'Cancelar Creación' : 'Nuevo Registro'}
+            </button>
+          </div>
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', textAlign:'left' }}>
               <thead>
@@ -600,7 +645,35 @@ const AdminView = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredLogs.length === 0
+                {isAddingNew && (
+                  <tr style={{ background: 'rgba(16, 185, 129, 0.1)', borderBottom: '2px solid #10b981' }}>
+                    <td style={{ padding:'1rem 1.5rem' }}>
+                      <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #10b981', color: 'white', borderRadius: '8px', marginBottom: '4px', display: 'block', width: '130px' }} />
+                      <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #10b981', color: 'white', borderRadius: '8px', display: 'block', width: '130px' }} />
+                    </td>
+                    <td style={{ padding:'1rem 1.5rem' }}>
+                      <input type="text" placeholder="Nombre completo" value={newNombre} onChange={e => setNewNombre(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #10b981', color: 'white', borderRadius: '8px', width: '100%' }} />
+                    </td>
+                    <td style={{ padding:'1rem 1.5rem' }}>
+                      <input type="text" placeholder="Celular (opcional)" value={newCelular} onChange={e => setNewCelular(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #10b981', color: 'white', borderRadius: '8px', width: '100%' }} />
+                    </td>
+                    <td style={{ padding:'1rem 1.5rem' }}>
+                      <select value={newTipo} onChange={e => setNewTipo(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #10b981', color: 'white', borderRadius: '8px' }}>
+                        <option value="Ingreso">Ingreso</option>
+                        <option value="Almuerzo">Salida Almuerzo</option>
+                        <option value="Regreso Almuerzo">Regreso Almuerzo</option>
+                        <option value="Salida">Salida</option>
+                        <option value="Permiso Personal">Permiso Personal</option>
+                        <option value="Permiso Médico">Permiso Médico</option>
+                        <option value="Día de Descanso">Día de Descanso</option>
+                      </select>
+                    </td>
+                    <td style={{ padding:'1rem 1.5rem' }}>
+                      <button onClick={handleSaveNew} style={{ background: '#10b981', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Crear</button>
+                    </td>
+                  </tr>
+                )}
+                {filteredLogs.length === 0 && !isAddingNew
                   ? <tr><td colSpan="4" style={{ padding:'3rem', textAlign:'center', color:'#94a3b8' }}>No hay datos aún.</td></tr>
                   : filteredLogs.map(log => {
                     const d = parseDate(log.timestamp)
@@ -653,10 +726,15 @@ const AdminView = () => {
                           <span style={{ padding:'5px 12px', borderRadius:'10px', fontSize:'0.85rem', fontWeight:'700', background:`${tipoColor(log.tipo)}22`, color: tipoColor(log.tipo) }}>{log.tipo}</span>
                         </td>
                         <td style={{ padding:'1rem 1.5rem' }}>
-                          <button onClick={() => handleEditClick(log)} style={{ background: 'transparent', border: 'none', color: '#818cf8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }} title="Modificar Marcación">
-                            <FileEdit size={18} />
-                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Editar</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+                              <button onClick={() => handleEditClick(log)} style={{ background: 'transparent', border: 'none', color: '#818cf8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }} title="Modificar Marcación">
+                                <FileEdit size={18} />
+                                <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Editar</span>
+                              </button>
+                              <button onClick={() => handleDeleteClick(log.id)} style={{ background: 'transparent', border: 'none', color: '#f43f5e', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }} title="Eliminar Registro">
+                                <Trash2 size={18} />
+                              </button>
+                          </div>
                         </td>
                       </tr>
                     )
