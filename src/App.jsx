@@ -260,7 +260,6 @@ const AdminView = () => {
     return () => supabase.removeChannel(sub)
   }, [])
 
-  // Filtrar logs
   const filteredLogs = useMemo(() => {
     return logs.filter(l => {
       const d = parseDate(l.timestamp);
@@ -268,7 +267,7 @@ const AdminView = () => {
       const matchTipo = !selectedTipo || l.tipo === selectedTipo;
       const matchMes = !selectedMes || (d.getMonth() + 1).toString() === selectedMes;
       return matchColab && matchTipo && matchMes;
-    });
+    }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   }, [logs, selectedColab, selectedTipo, selectedMes]);
 
   const stats = useMemo(() => {
