@@ -246,7 +246,7 @@ const AdminView = () => {
 
   // Estado para módulo de descanso rápido
   const [descansoColab, setDescansoColab] = useState('')
-  const [descansoDate, setDescansoDate] = useState('')
+  const [descansoDiaSemana, setDescansoDiaSemana] = useState('')
 
   useEffect(() => {
     supabase.from('asistencia').select('*').order('timestamp', { ascending: false }).limit(500)
@@ -459,28 +459,45 @@ const AdminView = () => {
   }
 
   const handleAssignDescanso = async () => {
-    if (!descansoColab || !descansoDate) return alert("Selecciona el colaborador y la fecha")
+    if (!descansoColab || !descansoDiaSemana) return alert("Selecciona el colaborador y el día de la semana")
     
-    // Buscar si ya tiene un registro de descanso ese día (opcional, pero buena práctica)
-    const newTimestamp = new Date(`${descansoDate}T08:00:00`).toISOString()
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const targetDay = parseInt(descansoDiaSemana); // 0=Dom, 1=Lun...
     
-    // Encontrar el celular del colaborador basado en registros anteriores (para mantener consistencia)
+    // Obtener todas las fechas del mes actual que caigan en ese día de la semana
+    const datesToInsert = [];
+    const date = new Date(year, month, 1);
+    while (date.getMonth() === month) {
+        if (date.getDay() === targetDay) {
+            datesToInsert.push(new Date(date));
+        }
+        date.setDate(date.getDate() + 1);
+    }
+    
     const colabInfo = logs.find(l => l.nombre === descansoColab)
     const celular = colabInfo ? colabInfo.celular : 'N/A'
 
+    const inserts = datesToInsert.map(d => {
+        const pad = (n) => n.toString().padStart(2, '0');
+        const isoDateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T08:00:00`;
+        return {
+            nombre: descansoColab,
+            celular: celular,
+            tipo: 'Día de Descanso',
+            timestamp: new Date(isoDateStr).toISOString()
+        };
+    });
+
     try {
-      const { error } = await supabase.from('asistencia').insert([{
-        nombre: descansoColab,
-        celular: celular,
-        tipo: 'Día de Descanso',
-        timestamp: newTimestamp
-      }])
+      const { error } = await supabase.from('asistencia').insert(inserts)
       if (error) throw error
-      setDescansoColab(''); setDescansoDate('');
-      alert(`Día de descanso asignado a ${descansoColab} exitosamente`)
+      setDescansoColab(''); setDescansoDiaSemana('');
+      alert(`Se han programado exitosamente ${inserts.length} días de descanso para ${descansoColab} durante este mes.`)
     } catch (err) {
       console.error(err)
-      alert('Error al asignar el descanso.')
+      alert('Error al asignar los descansos.')
     }
   }
 
@@ -580,12 +597,20 @@ const AdminView = () => {
                     <option value="">👤 Seleccionar Colaborador...</option>
                     {colaboradoresUnicos.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <input 
-                    type="date" 
-                    value={descansoDate} 
-                    onChange={(e) => setDescansoDate(e.target.value)}
+                <select 
+                    value={descansoDiaSemana} 
+                    onChange={(e) => setDescansoDiaSemana(e.target.value)}
                     style={{ flex: 1, minWidth: '150px', padding: '0.8rem 1rem', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', outline: 'none' }}
-                />
+                >
+                    <option value="">📅 Día de la semana...</option>
+                    <option value="1">Lunes</option>
+                    <option value="2">Martes</option>
+                    <option value="3">Miércoles</option>
+                    <option value="4">Jueves</option>
+                    <option value="5">Viernes</option>
+                    <option value="6">Sábado</option>
+                    <option value="0">Domingo</option>
+                </select>
                 <button 
                     onClick={handleAssignDescanso} 
                     style={{ padding:'0.8rem 1.5rem', background:'#10b981', color:'white', border:'none', borderRadius:'12px', cursor:'pointer', fontWeight:'bold', display:'flex', alignItems:'center', gap:'0.5rem' }}
