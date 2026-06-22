@@ -109,7 +109,9 @@ const MobileView = () => {
   const handleSolicitarPermiso = async () => {
     if (!permFecha || !permMotivo.trim()) return alert('Completa la fecha y el motivo')
     const ts = new Date(`${permFecha}T08:00:00`).toISOString()
-    const rec = { nombre: empName, celular: empPhone, tipo: permTipo, timestamp: ts, motivo: permMotivo }
+    // Guardamos el motivo DENTRO del campo tipo para no necesitar columna extra
+    const tipoConMotivo = `${permTipo}: ${permMotivo.trim()}`
+    const rec = { nombre: empName, celular: empPhone, tipo: tipoConMotivo, timestamp: ts }
     try {
       await supabase.from('asistencia').insert([rec])
       setPermEnviado(true)
@@ -120,7 +122,9 @@ const MobileView = () => {
   const handleEnviarJustificante = async () => {
     if (!justFecha || !justMotivo.trim()) return alert('Completa la fecha y el motivo')
     const ts = new Date(`${justFecha}T08:00:00`).toISOString()
-    const rec = { nombre: empName, celular: empPhone, tipo: 'Justificante', timestamp: ts, motivo: justMotivo }
+    // Guardamos el motivo DENTRO del campo tipo para no necesitar columna extra
+    const tipoConMotivo = `Justificante: ${justMotivo.trim()}`
+    const rec = { nombre: empName, celular: empPhone, tipo: tipoConMotivo, timestamp: ts }
     try {
       await supabase.from('asistencia').insert([rec])
       setJustEnviado(true)
