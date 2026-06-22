@@ -272,7 +272,7 @@ const AdminView = () => {
 
   const stats = useMemo(() => {
     const todayLogs = filteredLogs.filter(l => isToday(parseDate(l.timestamp)))
-    const presentes = new Set(todayLogs.filter(l => l.tipo === 'Ingreso').map(l => l.celular)).size
+    const presentes = new Set(todayLogs.filter(l => l.tipo === 'Ingreso' || l.tipo === 'Ingreso Justificado').map(l => l.celular)).size
     const permisos = todayLogs.filter(l => l.tipo.includes('Permiso') || l.tipo.includes('Descanso')).length
     const totalHoy = todayLogs.length
 
@@ -540,9 +540,13 @@ const AdminView = () => {
             >
                 <option value="">🏷️ Todos los Tipos</option>
                 <option value="Ingreso">Ingreso</option>
+                <option value="Ingreso Justificado">Ingreso Justificado</option>
                 <option value="Almuerzo">Salida Almuerzo</option>
                 <option value="Regreso Almuerzo">Regreso Almuerzo</option>
                 <option value="Salida">Salida</option>
+                <option value="Permiso Personal">Permiso Personal</option>
+                <option value="Permiso Médico">Permiso Médico</option>
+                <option value="Día de Descanso">Día de Descanso</option>
             </select>
             <select 
                 value={selectedColab} 
@@ -747,6 +751,7 @@ const AdminView = () => {
                     <td style={{ padding:'1rem 1.5rem' }}>
                       <select value={newTipo} onChange={e => setNewTipo(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #10b981', color: 'white', borderRadius: '8px' }}>
                         <option value="Ingreso">Ingreso</option>
+                        <option value="Ingreso Justificado">Ingreso Justificado</option>
                         <option value="Almuerzo">Salida Almuerzo</option>
                         <option value="Regreso Almuerzo">Regreso Almuerzo</option>
                         <option value="Salida">Salida</option>
@@ -786,6 +791,7 @@ const AdminView = () => {
                         <td style={{ padding:'1rem 1.5rem' }}>
                           <select value={editTipo} onChange={e => setEditTipo(e.target.value)} style={{ padding: '0.4rem', background: 'rgba(0,0,0,0.5)', border: '1px solid #6366f1', color: 'white', borderRadius: '8px' }}>
                             <option value="Ingreso">Ingreso</option>
+                            <option value="Ingreso Justificado">Ingreso Justificado</option>
                             <option value="Almuerzo">Salida Almuerzo</option>
                             <option value="Regreso Almuerzo">Regreso Almuerzo</option>
                             <option value="Salida">Salida</option>
