@@ -17,8 +17,8 @@ const fmtHora = (d) => d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: 
 const fmtFecha = (d) => d.toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric' })
 
 // --- Card ---
-const Card = ({ children, style = {} }) => (
-  <div style={{ background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '24px', padding: '1.5rem', ...style }}>
+const Card = ({ children, style = {}, className = '' }) => (
+  <div className={`glass-card ${className}`} style={{ ...style }}>
     {children}
   </div>
 )
@@ -591,11 +591,11 @@ const AdminView = () => {
   }
 
   return (
-    <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'2rem 1rem' }}>
-      <header style={{ marginBottom:'2rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'1rem' }}>
+    <div style={{ maxWidth:'1250px', margin:'0 auto', padding:'1rem' }}>
+      <header style={{ marginBottom:'2.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'1rem', padding:'1rem 0' }}>
         <div>
-          <h1 style={{ fontSize:'2.2rem', margin:0, background:'linear-gradient(to right,#818cf8,#34d399)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>Centro de Operaciones</h1>
-          <p style={{ color:'#94a3b8', margin:0 }}>Panel de Administración</p>
+          <h1 className="text-gradient" style={{ fontSize:'2.5rem', margin:0 }}>Centro de Operaciones</h1>
+          <p style={{ color:'var(--text-muted)', margin:0, fontSize:'1.1rem', fontWeight:'500' }}>Panel de Administración Empresarial</p>
         </div>
         <div style={{ display:'flex', gap:'1rem', alignItems:'center' }}>
           <div style={{ padding:'8px 18px', borderRadius:'20px', fontSize:'0.85rem', fontWeight:'bold', background: dbStatus === 'ok' ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)', color: dbStatus === 'ok' ? '#10b981' : '#f43f5e', border:'1px solid currentColor' }}>
@@ -605,9 +605,9 @@ const AdminView = () => {
         </div>
       </header>
 
-      <div style={{ display:'flex', gap:'0.8rem', marginBottom:'2rem', borderBottom:'1px solid rgba(255,255,255,0.1)', paddingBottom:'1rem', flexWrap: 'wrap' }}>
-        {[['dashboard','📊 Dashboard'],['en-vivo','⚡ Registros en Vivo']].map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)} style={{ padding:'0.6rem 1.2rem', background: tab === t ? '#6366f1' : 'transparent', color: tab === t ? 'white' : '#94a3b8', border: tab === t ? 'none' : '1px solid rgba(255,255,255,0.1)', borderRadius:'12px', cursor:'pointer', fontWeight:'600' }}>{label}</button>
+      <div style={{ display:'flex', gap:'1rem', marginBottom:'2.5rem', borderBottom:'1px solid var(--glass-border)', paddingBottom:'1.5rem', flexWrap: 'wrap' }}>
+        {[['dashboard','📊 Dashboard Principal'],['en-vivo','⚡ Registros en Vivo']].map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t)} style={{ padding:'0.8rem 1.5rem', background: tab === t ? 'var(--primary)' : 'rgba(255,255,255,0.03)', color: tab === t ? 'white' : 'var(--text-muted)', border: tab === t ? 'none' : '1px solid var(--glass-border)', borderRadius:'14px', cursor:'pointer', fontWeight:'600', transition:'all 0.3s', boxShadow: tab === t ? '0 8px 20px var(--primary-glow)' : 'none' }}>{label}</button>
         ))}
         
         {/* Controles Empresariales */}
