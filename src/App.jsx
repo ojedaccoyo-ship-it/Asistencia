@@ -450,7 +450,7 @@ const AdminView = () => {
 
   const handleLogin = (e) => {
     e.preventDefault()
-    if (passInput === 'admin2026') { // Contraseña por defecto
+    if (passInput === 'adm2026') { // Contraseña por defecto
        sessionStorage.setItem('adminAuth', 'true')
        setIsAuthenticated(true)
     } else {
